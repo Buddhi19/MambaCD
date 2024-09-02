@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/home/songjian/project/MambaCD')
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '..')))
 
 import argparse
 import os
