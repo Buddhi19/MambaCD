@@ -105,18 +105,18 @@ class SemanticChangeDetectionDatset(Dataset):
         return pre_img, post_img, cd_label, t1_label, t2_label
 
     def __getitem__(self, index):
-        if 'train' in self.data_pro_type:
-            pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index] + '.png')
-            post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index] + '.png')
-            T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index] + '.png')
-            T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index] + '.png')
-            cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index] + '.png')
-        else:
-            pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index])
-            post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index])
-            T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index])
-            T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index])
-            cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index])
+        # if 'train' in self.data_pro_type:
+        #     pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index] + '.png')
+        #     post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index] + '.png')
+        #     T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index] + '.png')
+        #     T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index] + '.png')
+        #     cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index] + '.png')
+        # else:
+        pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index])
+        post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index])
+        T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index])
+        T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index])
+        cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index])
 
         pre_img = self.loader(pre_path)
         post_img = self.loader(post_path)
