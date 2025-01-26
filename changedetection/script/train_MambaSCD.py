@@ -62,8 +62,7 @@ class Trainer(object):
             gmlp=config.MODEL.VSSM.GMLP,
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             ) 
-        self.device = args.device
-        self.deep_model = self.deep_model.cuda(device= self.device)
+        self.deep_model = self.deep_model.cuda()
         self.model_save_path = os.path.join(args.model_param_path, args.dataset,
                                             args.model_type + '_' + str(time.time()))
         self.lr = args.learning_rate
@@ -135,8 +134,6 @@ class Trainer(object):
             main_loss = ce_loss_cd + 0.5 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
 
-            print(final_loss.shape)
-            exit()
             final_loss.backward()
 
             self.optim.step()
