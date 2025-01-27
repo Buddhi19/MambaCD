@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
-from ChangeDetection.ConvMamba import ConvMamba
+from ChangeDetection.ConvMamba import ConvMamba, Conv1DMamba
 
 
 class SemanticDecoder(nn.Module):
@@ -18,7 +18,7 @@ class SemanticDecoder(nn.Module):
             #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
             #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
             #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
+            Conv1DMamba(
                 in_channels=128,
                 encoder_dims=encoder_dims,
                 norm_layer=norm_layer,
@@ -36,7 +36,7 @@ class SemanticDecoder(nn.Module):
             #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
             #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
             #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
+            Conv1DMamba(
                 in_channels=128,
                 encoder_dims=encoder_dims,
                 norm_layer=norm_layer,
@@ -54,7 +54,7 @@ class SemanticDecoder(nn.Module):
             #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
             #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
             #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
+            Conv1DMamba(
                 in_channels=128,
                 encoder_dims=encoder_dims,
                 norm_layer=norm_layer,
@@ -72,7 +72,7 @@ class SemanticDecoder(nn.Module):
             #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
             #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
             #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
+            Conv1DMamba(
                 in_channels=128,
                 encoder_dims=encoder_dims,
                 norm_layer=norm_layer,
