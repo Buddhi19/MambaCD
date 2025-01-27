@@ -1566,57 +1566,52 @@ class VSSM(nn.Module):
         # if channel first, then Norm and Output are both channel_first
         depth = len(drop_path)
         blocks = []
-        from ChangeDetection.ConvMamba import ConvMamba
+        from ChangeDetection.ConvMamba import ConvMamba, ConvMamba_Encoder
         for d in range(depth):
-            blocks.append(VSSBlock(
-                hidden_dim=dim, 
-                drop_path=drop_path[d],
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_d_state=ssm_d_state,
-                ssm_ratio=ssm_ratio,
-                ssm_dt_rank=ssm_dt_rank,
-                ssm_act_layer=ssm_act_layer,
-                ssm_conv=ssm_conv,
-                ssm_conv_bias=ssm_conv_bias,
-                ssm_drop_rate=ssm_drop_rate,
-                ssm_init=ssm_init,
-                forward_type=forward_type,
-                mlp_ratio=mlp_ratio,
-                mlp_act_layer=mlp_act_layer,
-                mlp_drop_rate=mlp_drop_rate,
-                gmlp=gmlp,
-                use_checkpoint=use_checkpoint,
-            ))
-            # kwargs = {
-            #     "hidden_dim": dim,
-            #     "drop_path": drop_path[d],
-            #     "norm_layer": norm_layer,
-            #     "channel_first": channel_first,
-            #     "ssm_d_state": ssm_d_state,
-            #     "ssm_ratio": ssm_ratio,
-            #     "ssm_dt_rank": ssm_dt_rank,
-            #     "ssm_act_layer": ssm_act_layer,
-            #     "ssm_conv": ssm_conv,
-            #     "ssm_conv_bias": ssm_conv_bias,
-            #     "ssm_drop_rate": ssm_drop_rate,
-            #     "ssm_init": ssm_init,
-            #     "forward_type": forward_type,
-            #     "mlp_ratio": mlp_ratio,
-            #     "mlp_act_layer": mlp_act_layer,
-            #     "mlp_drop_rate": mlp_drop_rate,
-            #     "gmlp": gmlp,
-            #     "use_checkpoint": use_checkpoint
-            # }
-            # blocks.append(
-            #     Permute(0, 2, 3, 1) if channel_first else nn.Identity()
-            # )
-            # blocks.append(
-            #     ConvMamba(
-            #         in_channels=dim, 
-            #         **kwargs
-            #     )
-            # )
+            # blocks.append(VSSBlock(
+            #     hidden_dim=dim, 
+            #     drop_path=drop_path[d],
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_d_state=ssm_d_state,
+            #     ssm_ratio=ssm_ratio,
+            #     ssm_dt_rank=ssm_dt_rank,
+            #     ssm_act_layer=ssm_act_layer,
+            #     ssm_conv=ssm_conv,
+            #     ssm_conv_bias=ssm_conv_bias,
+            #     ssm_drop_rate=ssm_drop_rate,
+            #     ssm_init=ssm_init,
+            #     forward_type=forward_type,
+            #     mlp_ratio=mlp_ratio,
+            #     mlp_act_layer=mlp_act_layer,
+            #     mlp_drop_rate=mlp_drop_rate,
+            #     gmlp=gmlp,
+            #     use_checkpoint=use_checkpoint,
+            # ))
+            # print(dim)
+            kwargs = {
+                "hidden_dim": dim,
+                "drop_path": drop_path[d],
+                "norm_layer": norm_layer,
+                "channel_first": channel_first,
+                "ssm_d_state": ssm_d_state,
+                "ssm_ratio": ssm_ratio,
+                "ssm_dt_rank": ssm_dt_rank,
+                "ssm_act_layer": ssm_act_layer,
+                "ssm_conv": ssm_conv,
+                "ssm_conv_bias": ssm_conv_bias,
+                "ssm_drop_rate": ssm_drop_rate,
+                "ssm_init": ssm_init,
+                "forward_type": forward_type,
+                "mlp_ratio": mlp_ratio,
+                "mlp_act_layer": mlp_act_layer,
+                "mlp_drop_rate": mlp_drop_rate,
+                "gmlp": gmlp,
+                "use_checkpoint": use_checkpoint
+            }
+            blocks.append(
+                ConvMamba_Encoder(**kwargs)
+            )
         
         return nn.Sequential(OrderedDict(
             blocks=nn.Sequential(*blocks,),
