@@ -1566,7 +1566,7 @@ class VSSM(nn.Module):
         # if channel first, then Norm and Output are both channel_first
         depth = len(drop_path)
         blocks = []
-        from ChangeDetection.ConvMamba import ConvMamba, ConvMamba_Encoder
+        from ChangeDetection.ConvMamba import ConvMamba, ConvMamba_Encoder, Conv1DMamba_Encoder
         for d in range(depth):
             # blocks.append(VSSBlock(
             #     hidden_dim=dim, 
@@ -1610,7 +1610,7 @@ class VSSM(nn.Module):
                 "use_checkpoint": use_checkpoint
             }
             blocks.append(
-                ConvMamba_Encoder(**kwargs)
+                Conv1DMamba_Encoder(**kwargs)
             )
         
         return nn.Sequential(OrderedDict(
