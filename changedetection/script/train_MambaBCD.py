@@ -21,6 +21,8 @@ from MambaCD.changedetection.models.MambaBCD import STMambaBCD
 
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 
+from ChangeDetection.loss import ce2_dice1
+
 class Trainer(object):
     def __init__(self, args):
         self.args = args
@@ -104,7 +106,8 @@ class Trainer(object):
             output_1 = self.deep_model(pre_change_imgs, post_change_imgs)
 
             self.optim.zero_grad()
-            ce_loss_1 = F.cross_entropy(output_1, labels, ignore_index=255)
+            # ce_loss_1 = F.cross_entropy(output_1, labels, ignore_index=255)
+            ce_loss_1 = ce2_dice1(output_1, labels)
             lovasz_loss = L.lovasz_softmax(F.softmax(output_1, dim=1), labels, ignore=255)
             main_loss = ce_loss_1 + 0.75 * lovasz_loss
             final_loss = main_loss
