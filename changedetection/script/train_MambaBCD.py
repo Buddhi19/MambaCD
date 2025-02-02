@@ -22,6 +22,7 @@ from MambaCD.changedetection.models.MambaBCD import STMambaBCD
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 
 from ChangeDetection.loss import ce2_dice1
+from torch.utils.tensorboard import SummaryWriter
 
 class Trainer(object):
     def __init__(self, args):
@@ -88,6 +89,8 @@ class Trainer(object):
                                  lr=args.learning_rate,
                                  weight_decay=args.weight_decay)
 
+        self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
+
     def training(self):
         best_kc = 0.0
         best_round = []
@@ -102,23 +105,34 @@ class Trainer(object):
             post_change_imgs = post_change_imgs.cuda()
             labels = labels.cuda().long()
 
-
             output_1 = self.deep_model(pre_change_imgs, post_change_imgs)
 
             self.optim.zero_grad()
-            # ce_loss_1 = F.cross_entropy(output_1, labels, ignore_index=255)
             ce_loss_1 = ce2_dice1(output_1, labels)
             lovasz_loss = L.lovasz_softmax(F.softmax(output_1, dim=1), labels, ignore=255)
-            main_loss = ce_loss_1 + 0.75 * lovasz_loss
+            
+            alpha = max(1.75 - (itera / 16000) * 1.0, 1.0)  # Gradually decrease weight
+            lovasz_weight = min(0.75, itera / 16000)  # Gradually increase Lovász weight
+
+            main_loss = alpha * ce_loss_1 + lovasz_weight * lovasz_loss
             final_loss = main_loss
 
             final_loss.backward()
             self.optim.step()
+
+            self.writer.add_scalar('Loss/train', final_loss.item(), itera + 1)
+
             if (itera + 1) % 10 == 0:
                 print(f'iter is {itera + 1}, overall loss is {final_loss}')
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     rec, pre, oa, f1_score, iou, kc = self.validation()
+                    self.writer.add_scalar('Metrics/Recall', rec, itera + 1)
+                    self.writer.add_scalar('Metrics/Precision', pre, itera + 1)
+                    self.writer.add_scalar('Metrics/OA', oa, itera + 1)
+                    self.writer.add_scalar('Metrics/F1_score', f1_score, itera + 1)
+                    self.writer.add_scalar('Metrics/IoU', iou, itera + 1)
+                    self.writer.add_scalar('Metrics/Kappa', kc, itera + 1)
                     if kc > best_kc:
                         torch.save(self.deep_model.state_dict(),
                                    os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
@@ -127,6 +141,7 @@ class Trainer(object):
                     self.deep_model.train()
 
         print('The accuracy of the best round is ', best_round)
+        self.writer.close()
 
     def validation(self):
         print('---------starting evaluation-----------')
@@ -156,10 +171,9 @@ class Trainer(object):
         pre = self.evaluator.Pixel_Precision_Rate()
         iou = self.evaluator.Intersection_over_Union()
         kc = self.evaluator.Kappa_coefficient()
-        print(f'Racall rate is {rec}, Precision rate is {pre}, OA is {oa}, '
+        print(f'Recall rate is {rec}, Precision rate is {pre}, OA is {oa}, '
               f'F1 score is {f1_score}, IoU is {iou}, Kappa coefficient is {kc}')
         return rec, pre, oa, f1_score, iou, kc
-
 
 def main():
     parser = argparse.ArgumentParser(description="Training on SYSU/LEVIR-CD+/WHU-CD dataset")
