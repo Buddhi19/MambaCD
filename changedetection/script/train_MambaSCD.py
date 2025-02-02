@@ -24,6 +24,8 @@ from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all
 
 from ChangeDetection.loss import ce2_dice1, ce2_dice1_multiclass
 
+from torch.utils.tensorboard import SummaryWriter
+
 class Trainer(object):
     def __init__(self, args):
         self.args = args
@@ -89,10 +91,9 @@ class Trainer(object):
                                  lr=args.learning_rate,
                                  weight_decay=args.weight_decay)
 
-
-
         self.scheduler = StepLR(self.optim, step_size=10000, gamma=0.5)
 
+        self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
 
     def training(self):
         best_kc = 0.0
@@ -146,6 +147,7 @@ class Trainer(object):
 
             if (itera + 1) % 10 == 0:
                 print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.25*lovasz_loss_cd}, classification loss is {(ce_loss_clf_t1 + ce_loss_clf_t2 + (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)*0.125)}')
+                self.writer.add_scalar('Loss/train', final_loss.item(), itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     kappa_n0, Fscd, IoU_mean, Sek, oa = self.validation()
@@ -157,6 +159,7 @@ class Trainer(object):
                     self.deep_model.train()
 
         print('The accuracy of the best round is ', best_round)
+        self.writer.close()
 
     def validation(self):
         print('---------starting evaluation-----------')
@@ -207,6 +210,12 @@ class Trainer(object):
         kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
         print(f'Kappa coefficient rate is {kappa_n0}, F1 is {Fscd}, OA is {acc_meter.avg}, '
               f'mIoU is {IoU_mean}, SeK is {Sek}')
+        
+        self.writer.add_scalar('Validation/Kappa', kappa_n0, self.args.start_iter)
+        self.writer.add_scalar('Validation/F1', Fscd, self.args.start_iter)
+        self.writer.add_scalar('Validation/OA', acc_meter.avg, self.args.start_iter)
+        self.writer.add_scalar('Validation/mIoU', IoU_mean, self.args.start_iter)
+        self.writer.add_scalar('Validation/SeK', Sek, self.args.start_iter)
         
         return kappa_n0, Fscd, IoU_mean, Sek, acc_meter.avg
 
