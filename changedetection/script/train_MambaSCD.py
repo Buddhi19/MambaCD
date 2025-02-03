@@ -123,13 +123,11 @@ class Trainer(object):
             # Create a mask where change_mask is 255
             mask_255 = (change_mask == 255).unsqueeze(1).expand_as(output_semantic_t1)
 
-            if (itera + 1) > 1000 :
-                # Set the probability of the black class (index 0) to 1 for those pixels and others to 0
-                output_semantic_t1[mask_255] = 0
-                output_semantic_t1[:, 0, :, :][mask_255[:, 0, :, :]] = 1
+            output_semantic_t1[mask_255] = 0
+            output_semantic_t1[:, 0, :, :][mask_255[:, 0, :, :]] = 1
 
-                output_semantic_t2[mask_255] = 0
-                output_semantic_t2[:, 0, :, :][mask_255[:, 0, :, :]] = 1
+            output_semantic_t2[mask_255] = 0
+            output_semantic_t2[:, 0, :, :][mask_255[:, 0, :, :]] = 1
 
             ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
             # ce_loss_cd = ce2_dice1(output_1, label_cd)
@@ -152,9 +150,11 @@ class Trainer(object):
             weight1 = 1.0
             weight2 = 0.5
             if (itera + 1) > 1000:
-                weight = 1.0
+                weight2 = 1.0
+                weight1 = 0.5
 
-            main_loss = ce_loss_cd + weight * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
+
+            main_loss = weight1*ce_loss_cd + weight2 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
 
             final_loss.backward()
@@ -163,10 +163,10 @@ class Trainer(object):
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + lovasz_loss_cd}, classification loss is {(ce_loss_clf_t1 + ce_loss_clf_t2 + lovasz_loss_clf_t1 + lovasz_loss_clf_t2) / 2}')
-                self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd + lovasz_loss_cd, itera + 1)
-                self.writer.add_scalar('Loss/Classification', (ce_loss_clf_t1 + ce_loss_clf_t2 + lovasz_loss_clf_t1 + lovasz_loss_clf_t2) / 2, itera + 1)
-                self.writer.add_scalar('Loss/Similarity', similarity_loss, itera + 1)
+                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.75*lovasz_loss_cd}, classification loss is {weight2*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.75*0.5*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}')
+                self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd + 0.75*lovasz_loss_cd, itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight2*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.75*0.5*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
+                self.writer.add_scalar('Loss/Similarity', weight2*0.5*similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
