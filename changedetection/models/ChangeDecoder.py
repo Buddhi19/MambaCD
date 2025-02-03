@@ -259,6 +259,7 @@ class ChangeDecoder(nn.Module):
 
         '''
             Stage I
+            Changes : pre_feat_i-> pre_feat_i+post_feat_i, post_feat_i -> post_feat_i-pre_feat_i
         '''
         p41 = self.st_block_41(torch.cat([pre_feat_4, post_feat_4], dim=1))
         B, C, H, W = pre_feat_4.size()

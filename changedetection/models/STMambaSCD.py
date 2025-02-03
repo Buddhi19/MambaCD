@@ -91,6 +91,9 @@ class STMambaSCD(nn.Module):
 
         # Decoder processing - passing encoder outputs to the decoder
         output_bcd = self.decoder_bcd(pre_features, post_features)
+        """
+        pre_features -> something with outputbcd
+        """
         output_T1 = self.decoder_T1(pre_features)
         output_T2 = self.decoder_T2(post_features)
 

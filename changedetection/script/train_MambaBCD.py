@@ -111,8 +111,15 @@ class Trainer(object):
             ce_loss_1 = ce2_dice1(output_1, labels)
             lovasz_loss = L.lovasz_softmax(F.softmax(output_1, dim=1), labels, ignore=255)
             
-            alpha = max(1.75 - (itera / 16000) * 1.0, 1.0)  # Gradually decrease weight
-            lovasz_weight = min(0.75, itera / 16000)  # Gradually increase Lovász weight
+            # alpha = max(1.75 - (itera / 16000) * 1.0, 1.0)  # Gradually decrease weight
+            # lovasz_weight = min(0.75, itera / 16000)  # Gradually increase Lovász weight
+
+            alpha = 1.0
+            lovasz_weight = 0.75
+
+            if (itera + 1) > 16000:
+                alpha = 0.75
+                lovasz_weight = 1.5
 
             main_loss = alpha * ce_loss_1 + lovasz_weight * lovasz_loss
             final_loss = main_loss
