@@ -149,7 +149,7 @@ class Trainer(object):
 
            
             weight1 = 1.0
-            weight2 = 0.6 if itera < 10000 else 1.2
+            weight2 = 0.5
             
             main_loss = weight1*ce_loss_cd + weight2 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.5 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
@@ -205,6 +205,17 @@ class Trainer(object):
 
                 # input_data = torch.cat([pre_change_imgs, post_change_imgs], dim=1)
                 output_1, output_semantic_t1, output_semantic_t2 = self.deep_model(pre_change_imgs, post_change_imgs)
+
+                change_mask = torch.argmax(output_1, axis=1)
+
+                # Create a mask where change_mask is 255
+                mask_255 = (change_mask == 255).unsqueeze(1).expand_as(output_semantic_t1)
+
+                output_semantic_t1[mask_255] = 0
+                output_semantic_t1[:, 0, :, :][mask_255[:, 0, :, :]] = 1
+
+                output_semantic_t2[mask_255] = 0
+                output_semantic_t2[:, 0, :, :][mask_255[:, 0, :, :]] = 1
 
                 labels_cd = labels_cd.cpu().numpy()
                 labels_A = labels_clf_t1.cpu().numpy()
