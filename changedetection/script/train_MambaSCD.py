@@ -160,9 +160,9 @@ class Trainer(object):
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.5*lovasz_loss_cd}, classification loss is {weight2*(ce_loss_clf_t1 + ce_loss_clf_t2)}')
+                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.5*lovasz_loss_cd}, classification loss is {weight2*(ce_loss_clf_t1 + ce_loss_clf_t2)+ 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}, similarity loss is {weight2*0.5*similarity_loss}, total loss is {final_loss}')
                 self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd, itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight2*(ce_loss_clf_t1 + ce_loss_clf_t2), itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight2*(ce_loss_clf_t1 + ce_loss_clf_t2)+ 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight2*0.5*similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
