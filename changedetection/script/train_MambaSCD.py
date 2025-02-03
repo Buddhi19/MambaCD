@@ -129,16 +129,16 @@ class Trainer(object):
             output_semantic_t2[mask_255] = 0
             output_semantic_t2[:, 0, :, :][mask_255[:, 0, :, :]] = 1
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
-            # ce_loss_cd = ce2_dice1(output_1, label_cd)
+            # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            ce_loss_cd = ce2_dice1(output_1, label_cd)
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
 
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            # ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
+            # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
+            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
 
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
-            # ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
+            # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
 
             # Mask for similarity loss (label == 255)
@@ -146,14 +146,10 @@ class Trainer(object):
     
             # Similarity loss calculation (e.g., MSE)
             similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-
-            weight1 = 1.0
-            weight2 = 0.5
-            if (itera + 1) > 1000:
-                weight2 = 1.0
-                weight1 = 0.5
-
-
+            
+            weight1 = max(0.1, 1.5 - (itera + 1) / 10000)
+            weight2 = min(1.5, (itera + 1) / 10000)
+            
             main_loss = weight1*ce_loss_cd + weight2 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
 
