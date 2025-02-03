@@ -129,28 +129,29 @@ class Trainer(object):
             output_semantic_t2[mask_255] = 0
             output_semantic_t2[:, 0, :, :][mask_255[:, 0, :, :]] = 1
 
+             # Mask for similarity loss (label == 255)
+            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
+    
+            # Similarity loss calculation (e.g., MSE)
+            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
+
             # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
             ce_loss_cd = ce2_dice1(output_1, label_cd)
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
 
             # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
+            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
 
             # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
-            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
+            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
 
-            # Mask for similarity loss (label == 255)
-            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
-    
-            # Similarity loss calculation (e.g., MSE)
-            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
+           
+            weight1 = 1.0
+            weight2 = 0.6 if itera < 10000 else 1.2
             
-            weight1 = max(0.1, 1.5 - (itera + 1) / 10000)
-            weight2 = min(1.5, (itera + 1) / 10000)
-            
-            main_loss = weight1*ce_loss_cd + weight2 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
+            main_loss = weight1*ce_loss_cd + weight2 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.5 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
 
             final_loss.backward()
@@ -159,14 +160,19 @@ class Trainer(object):
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.75*lovasz_loss_cd}, classification loss is {weight2*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.75*0.5*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}')
-                self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd + 0.75*lovasz_loss_cd, itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight2*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.75*0.5*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
+                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.5*lovasz_loss_cd}, classification loss is {weight2*(ce_loss_clf_t1 + ce_loss_clf_t2)}')
+                self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd, itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight2*(ce_loss_clf_t1 + ce_loss_clf_t2), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight2*0.5*similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     kappa_n0, Fscd, IoU_mean, Sek, oa = self.validation()
+                    self.writer.add_scalar('Metrics/Kappa', kappa_n0, itera+1)
+                    self.writer.add_scalar('Metrics/F1', Fscd, itera+1)
+                    self.writer.add_scalar('Metrics/OA', oa, itera+1)
+                    self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera+1)
+                    self.writer.add_scalar('Metrics/SeK', Sek, itera+1)
                     if Sek > best_kc:
                         torch.save(self.deep_model.state_dict(),
                                    os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
@@ -226,12 +232,6 @@ class Trainer(object):
         kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
         print(f'Kappa coefficient rate is {kappa_n0}, F1 is {Fscd}, OA is {acc_meter.avg}, '
               f'mIoU is {IoU_mean}, SeK is {Sek}')
-        
-        self.writer.add_scalar('Validation/Kappa', kappa_n0, self.args.start_iter)
-        self.writer.add_scalar('Validation/F1', Fscd, self.args.start_iter)
-        self.writer.add_scalar('Validation/OA', acc_meter.avg, self.args.start_iter)
-        self.writer.add_scalar('Validation/mIoU', IoU_mean, self.args.start_iter)
-        self.writer.add_scalar('Validation/SeK', Sek, self.args.start_iter)
         
         return kappa_n0, Fscd, IoU_mean, Sek, acc_meter.avg
 
