@@ -261,7 +261,9 @@ class ChangeDecoder(nn.Module):
             Stage I
             Changes : pre_feat_i-> pre_feat_i+post_feat_i, post_feat_i -> post_feat_i-pre_feat_i
         '''
-        p41 = self.st_block_41(torch.cat([pre_feat_4, post_feat_4], dim=1))
+        IN_FEAT4_1 = pre_feat_4 + post_feat_4
+        IN_FEAT4_2 = post_feat_4 - pre_feat_4
+        p41 = self.st_block_41(torch.cat([IN_FEAT4_1, IN_FEAT4_2], dim=1))
         B, C, H, W = pre_feat_4.size()
         # Create an empty tensor of the correct shape (B, C, H, 2*W)
         ct_tensor_42 = torch.empty(B, C, H, 2*W).cuda()
@@ -281,7 +283,9 @@ class ChangeDecoder(nn.Module):
         '''
             Stage II
         '''
-        p31 = self.st_block_31(torch.cat([pre_feat_3, post_feat_3], dim=1))
+        IN_FEAT3_1 = pre_feat_3 + post_feat_3
+        IN_FEAT3_2 = post_feat_3 - pre_feat_3
+        p31 = self.st_block_31(torch.cat([IN_FEAT3_1,IN_FEAT3_2], dim=1))
         B, C, H, W = pre_feat_3.size()
         # Create an empty tensor of the correct shape (B, C, H, 2*W)
         ct_tensor_32 = torch.empty(B, C, H, 2*W).cuda()
@@ -302,7 +306,9 @@ class ChangeDecoder(nn.Module):
         '''
             Stage III
         '''
-        p21 = self.st_block_21(torch.cat([pre_feat_2, post_feat_2], dim=1))
+        IN_FEAT2_1 = pre_feat_2 + post_feat_2
+        IN_FEAT2_2 = post_feat_2 - pre_feat_2
+        p21 = self.st_block_21(torch.cat([IN_FEAT2_1, IN_FEAT2_2], dim=1))
         B, C, H, W = pre_feat_2.size()
         # Create an empty tensor of the correct shape (B, C, H, 2*W)
         ct_tensor_22 = torch.empty(B, C, H, 2*W).cuda()
@@ -323,7 +329,9 @@ class ChangeDecoder(nn.Module):
         '''
             Stage IV
         '''
-        p11 = self.st_block_11(torch.cat([pre_feat_1, post_feat_1], dim=1))
+        IN_FEAT1_1 = pre_feat_1 + post_feat_1
+        IN_FEAT1_2 = post_feat_1 - pre_feat_1
+        p11 = self.st_block_11(torch.cat([IN_FEAT1_1,IN_FEAT1_2], dim=1))
         B, C, H, W = pre_feat_1.size()
         # Create an empty tensor of the correct shape (B, C, H, 2*W)
         ct_tensor_12 = torch.empty(B, C, H, 2*W).cuda()

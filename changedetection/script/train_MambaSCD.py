@@ -119,15 +119,6 @@ class Trainer(object):
             self.optim.zero_grad()
 
             change_mask = torch.argmax(output_1, axis=1)
-
-            mask_0 = (change_mask == 0).unsqueeze(1).expand_as(output_semantic_t1)
-
-            output_semantic_t1[mask_0] = 0
-            output_semantic_t1[:, 0, :, :][mask_0[:, 0, :, :]] = 1
-
-            output_semantic_t2[mask_0] = 0
-            output_semantic_t2[:, 0, :, :][mask_0[:, 0, :, :]] = 1
-
              # Mask for similarity loss (label == 255)
             similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
     
