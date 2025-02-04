@@ -21,7 +21,7 @@ from MambaCD.changedetection.models.MambaBCD import STMambaBCD
 
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 
-from ChangeDetection.loss import ce2_dice1
+from ChangeDetection.CDlib.loss import ce2_dice1
 from torch.utils.tensorboard import SummaryWriter
 
 class Trainer(object):
