@@ -213,19 +213,18 @@ class Trainer(object):
 
                 preds_A = torch.argmax(output_semantic_t1, dim=1).cpu().numpy()
                 preds_B = torch.argmax(output_semantic_t2, dim=1).cpu().numpy()
-                
 
-                preds_scd = (preds_A - 1) * 6 + preds_B
-                preds_scd[change_mask == 0] = 0
+                preds_A[change_mask == 0] = 0
+                preds_B[change_mask == 0] = 0
 
-                labels_scd = (labels_A - 1) * 6 + labels_B
-                labels_scd[labels_cd == 0] = 0
-
-                for (pred_scd, label_scd) in zip(preds_scd, labels_scd):
-                    acc_A, valid_sum_A = accuracy(pred_scd, label_scd)
-                    preds_all.append(pred_scd)
-                    labels_all.append(label_scd)
-                    acc = acc_A
+                for (pred_A, pred_B, label_A, label_B) in zip(preds_A, preds_B, labels_A, labels_B):
+                    acc_A, valid_sum_A = accuracy(pred_A, label_A)
+                    acc_B, valid_sum_B = accuracy(pred_B, label_B)
+                    preds_all.append(pred_A)
+                    preds_all.append(pred_B)
+                    labels_all.append(label_A)
+                    labels_all.append(label_B)
+                    acc = (acc_A + acc_B) * 0.5
                     acc_meter.update(acc)
 
         kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
