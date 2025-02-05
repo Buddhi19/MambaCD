@@ -156,7 +156,6 @@ class Trainer(object):
                 weight_unchanged * (dice_loss_clf_t2_unchanged)
             )
 
-            # Similarity loss (unchanged regions only)
             similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
             similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
 
