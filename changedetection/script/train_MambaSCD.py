@@ -123,19 +123,22 @@ class Trainer(object):
             changed_mask = (CHANGE_MASK != 0).float()  # Changed regions (label != 0)
             unchanged_mask = (CHANGE_MASK == 0).float()  # Unchanged regions (label == 0)
 
+            changed_mask_7d = (CHANGE_MASK == 0).unsqueeze(1).expand_as(output_semantic_t1)
+            unchanged_mask_7d = (CHANGE_MASK != 0).unsqueeze(1).expand_as(output_semantic_t1)
+
             # Loss for changed regions
             dice_loss_cd_changed = ce2_dice1(output_1 * changed_mask.unsqueeze(1), label_cd)
 
-            dice_loss_clf_t1_changed = ce2_dice1_multiclass(output_semantic_t1 * changed_mask.unsqueeze(1), label_clf_t1)
+            dice_loss_clf_t1_changed = ce2_dice1_multiclass(output_semantic_t1 * changed_mask_7d, label_clf_t1)
 
-            dice_loss_clf_t2_changed = ce2_dice1_multiclass(output_semantic_t2 * changed_mask.unsqueeze(1), label_clf_t2)
+            dice_loss_clf_t2_changed = ce2_dice1_multiclass(output_semantic_t2 * changed_mask_7d, label_clf_t2)
 
             # Loss for unchanged regions
             dice_loss_cd_unchanged = ce2_dice1(output_1 * unchanged_mask.unsqueeze(1), label_cd)
 
-            dice_loss_clf_t1_unchanged = ce2_dice1(output_semantic_t1 * unchanged_mask.unsqueeze(1), label_clf_t1)
+            dice_loss_clf_t1_unchanged = ce2_dice1_multiclass(output_semantic_t1 * unchanged_mask_7d, label_clf_t1)
 
-            dice_loss_clf_t2_unchanged = ce2_dice1(output_semantic_t2 * unchanged_mask.unsqueeze(1), label_clf_t2)
+            dice_loss_clf_t2_unchanged = ce2_dice1_multiclass(output_semantic_t2 * unchanged_mask_7d, label_clf_t2)
 
             # Combine losses for changed and unchanged regions
             weight_changed = 1.0  # Higher weight for changed regions
