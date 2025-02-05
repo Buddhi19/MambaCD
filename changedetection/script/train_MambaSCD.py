@@ -22,7 +22,7 @@ import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import ce2_dice1, ce2_dice1_multiclass
+from ChangeDetection.CDlib.loss import ce2_dice1, ce2_dice1_multiclass, contrastive_loss
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -118,63 +118,26 @@ class Trainer(object):
 
             self.optim.zero_grad()
 
-            CHANGE_MASK = torch.argmax(output_1, axis=1)
-
-            changed_mask = (CHANGE_MASK != 0).float()  # Changed regions (label != 0)
-            unchanged_mask = (CHANGE_MASK == 0).float()  # Unchanged regions (label == 0)
-
-            changed_mask_7d = (CHANGE_MASK == 0).unsqueeze(1).expand_as(output_semantic_t1)
-            unchanged_mask_7d = (CHANGE_MASK != 0).unsqueeze(1).expand_as(output_semantic_t1)
-
-            # Loss for changed regions
-            dice_loss_cd_changed = ce2_dice1(output_1 * changed_mask.unsqueeze(1), label_cd)
-
-            dice_loss_clf_t1_changed = ce2_dice1_multiclass(output_semantic_t1 * changed_mask_7d, label_clf_t1)
-
-            dice_loss_clf_t2_changed = ce2_dice1_multiclass(output_semantic_t2 * changed_mask_7d, label_clf_t2)
-
-            # Loss for unchanged regions
-            dice_loss_cd_unchanged = ce2_dice1(output_1 * unchanged_mask.unsqueeze(1), label_cd)
-
-            dice_loss_clf_t1_unchanged = ce2_dice1_multiclass(output_semantic_t1 * unchanged_mask_7d, label_clf_t1)
-
-            dice_loss_clf_t2_unchanged = ce2_dice1_multiclass(output_semantic_t2 * unchanged_mask_7d, label_clf_t2)
-
-            # Combine losses for changed and unchanged regions
-            weight_changed = 1.0  # Higher weight for changed regions
-            weight_unchanged = 0.5  # Lower weight for unchanged regions
-
-            total_loss_cd = (
-                weight_changed * (dice_loss_cd_changed) +
-                weight_unchanged * (dice_loss_cd_unchanged)
-            )
-
-            total_loss_clf_t1 = (
-                weight_changed * (dice_loss_clf_t1_changed) +
-                weight_unchanged * (dice_loss_clf_t1_unchanged)
-            )
-
-            total_loss_clf_t2 = (
-                weight_changed * (dice_loss_clf_t2_changed) +
-                weight_unchanged * (dice_loss_clf_t2_unchanged)
-            )
-
-            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
-            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-
-            # Lovasz losses
+            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
+
+            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
+
+            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
 
-            # Final loss
-            weight1 = 1.0
-            weight2 = 0.5
-            main_loss = (
-                weight1 * (total_loss_cd + 0.5 * lovasz_loss_cd) +
-                weight2 * (total_loss_clf_t1 + total_loss_clf_t2 + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
-                weight2 * 0.5 * similarity_loss
-            )
+            # Mask for similarity loss (label == 255)
+            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
+    
+            # Similarity loss calculation (e.g., MSE)
+            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
+
+            change_mask = torch.argmax(output_1, axis=1)
+
+            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2,change_mask)
+            
+            main_loss = ce_loss_cd + 0.5 * contrastive_loss_ + 0.5 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
             final_loss = main_loss
 
             final_loss.backward()
@@ -183,10 +146,10 @@ class Trainer(object):
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {total_loss_cd + 0.5*lovasz_loss_cd}, classification loss is {weight2*(total_loss_clf_t1 + total_loss_clf_t2)+ 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}')
-                self.writer.add_scalar('Loss/ChangeDetection', total_loss_cd, itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight2*(total_loss_clf_t1 + total_loss_clf_t2)+ 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
-                self.writer.add_scalar('Loss/Similarity', weight2*0.5*similarity_loss, itera + 1)
+                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + 0.5*lovasz_loss_cd}, classification loss is {0.5*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}, similarity loss is {0.25*similarity_loss}')
+                self.writer.add_scalar('Loss/ChangeDetection', ce_loss_cd + 0.5*lovasz_loss_cd, itera + 1)
+                self.writer.add_scalar('Loss/Classification', 0.5*(ce_loss_clf_t1 + ce_loss_clf_t2) + 0.25*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
+                self.writer.add_scalar('Loss/Similarity', 0.25*similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
