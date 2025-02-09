@@ -22,6 +22,7 @@ from timm.models.layers import DropPath, trunc_normal_
 from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_count
 from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
 from MambaCD.changedetection.models.SemanticDecoder import SemanticDecoder
+from ChangeDetection.TemporalImageDecoder import TemporalImageDecoder
 
 class STMambaSCD(nn.Module):
     def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
@@ -79,6 +80,15 @@ class STMambaSCD(nn.Module):
             **clean_kwargs
         )
 
+        self.temporary_decoder = TemporalImageDecoder(
+            encoder_dims=self.encoder.dims,
+            channel_first=self.encoder.channel_first,
+            norm_layer=norm_layer,
+            ssm_act_layer=ssm_act_layer,
+            mlp_act_layer=mlp_act_layer,
+            **clean_kwargs
+        )
+
 
         self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
         self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
@@ -97,6 +107,9 @@ class STMambaSCD(nn.Module):
         output_T1 = self.decoder_T1(pre_features)
         output_T2 = self.decoder_T2(post_features)
 
+        reconstructed_T1 = self.temporary_decoder(pre_features)
+        reconstructed_T2 = self.temporary_decoder(post_features)
+
 
         output_bcd = self.main_clf_cd(output_bcd)
         output_bcd = F.interpolate(output_bcd, size=pre_data.size()[-2:], mode='bilinear')
@@ -107,4 +120,7 @@ class STMambaSCD(nn.Module):
         output_T2 = self.aux_clf(output_T2)
         output_T2 = F.interpolate(output_T2, size=post_data.size()[-2:], mode='bilinear')
 
-        return output_bcd, output_T1, output_T2
+        reconstructed_T1 = F.interpolate(reconstructed_T1, size=pre_data.size()[-2:], mode='bilinear')
+        reconstructed_T2 = F.interpolate(reconstructed_T2, size=post_data.size()[-2:], mode='bilinear')
+
+        return output_bcd, output_T1, output_T2, reconstructed_T1, reconstructed_T2
