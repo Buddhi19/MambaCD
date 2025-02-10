@@ -22,7 +22,7 @@ import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import ce2_dice1, ce2_dice1_multiclass, contrastive_loss
+from ChangeDetection.CDlib.loss import contrastive_loss, FocalLoss, PerceptualLoss
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -121,47 +121,60 @@ class Trainer(object):
 
             self.optim.zero_grad()
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            # Focal Loss
+            focal_loss_cd = FocalLoss()(output_1, label_cd)
+            focal_loss_clf_t1 = FocalLoss()(output_semantic_t1, label_clf_t1)
+            focal_loss_clf_t2 = FocalLoss()(output_semantic_t2, label_clf_t2)
+
+            # Lovasz Loss
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
-
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
-
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
 
+            perceptual_loss = PerceptualLoss()
             mse_loss_reconstructed_T1 = F.mse_loss(reconstructed_T1, pre_change_imgs)
+            perceptual_loss_reconstructed_T1 = perceptual_loss(reconstructed_T1, pre_change_imgs)
+
             mse_loss_reconstructed_T2 = F.mse_loss(reconstructed_T2, post_change_imgs)
+            perceptual_loss_reconstructed_T2 = perceptual_loss(reconstructed_T2, post_change_imgs)
 
             # Mask for similarity loss (label == 255)
             similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
     
             # Similarity loss calculation (e.g., MSE)
-            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
+            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
+                                         F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
+            change_mask = torch.argmax(output_1, axis=1)
+            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, change_mask)
             
             # Loss weighting
             weight_cd = 1.0
             weight_clf = 0.75
             weight_similarity = 0.5
             weight_lovasz = 0.75
-            weight_reconstruction = 1
+            weight_reconstruction = 1.0
+            weight_perceptual = 0.5  
 
-            main_loss = (weight_cd * (ce_loss_cd + weight_lovasz*lovasz_loss_cd) +
-                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz*(lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
+            main_loss = (weight_cd * (focal_loss_cd + weight_lovasz * lovasz_loss_cd) +
+                         weight_clf * (focal_loss_clf_t1 + focal_loss_clf_t2 + contrastive_loss_ +
+                                       weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
                          weight_similarity * similarity_loss +
-                         weight_reconstruction * (mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2))
+                         weight_reconstruction * (mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2 + weight_perceptual * (perceptual_loss_reconstructed_T1 + perceptual_loss_reconstructed_T2))
+            )
 
             final_loss = main_loss
 
             final_loss.backward()
-
             self.optim.step()
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, reconstruction loss is {weight_reconstruction * (mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2)}')
-                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + lovasz_loss_cd), itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1)
+                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (focal_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
+                      f'classification loss is {weight_clf * (focal_loss_clf_t1 + focal_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
+                      f'similarity loss is {weight_similarity * similarity_loss}, '
+                      f'reconstruction loss is {weight_reconstruction * (mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2)}')
+                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (focal_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight_clf * (focal_loss_clf_t1 + focal_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Reconstruction', weight_reconstruction * (mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2), itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
