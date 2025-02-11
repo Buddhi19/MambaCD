@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
+from MambaCD.classification.models.vmamba import Permute
 from ChangeDetection.ConvMamba import Conv1DMamba, Conv1DMamba_v2
 
 SELECTED_MODEL = Conv1DMamba_v2

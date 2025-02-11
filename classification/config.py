@@ -38,7 +38,7 @@ _C.DATA.CACHE_MODE = 'part'
 # Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.
 _C.DATA.PIN_MEMORY = True
 # Number of data loading threads
-_C.DATA.NUM_WORKERS = 8
+_C.DATA.NUM_WORKERS = 12
 
 # [SimMIM] Mask patch size for MaskGenerator
 _C.DATA.MASK_PATCH_SIZE = 32
@@ -84,7 +84,7 @@ _C.MODEL.VSSM.SSM_ACT_LAYER = "silu"
 _C.MODEL.VSSM.SSM_CONV = 3
 _C.MODEL.VSSM.SSM_CONV_BIAS = True
 _C.MODEL.VSSM.SSM_DROP_RATE = 0.0
-_C.MODEL.VSSM.SSM_INIT = "v0"
+_C.MODEL.VSSM.SSM_SIMPLE_INIT = False
 _C.MODEL.VSSM.SSM_FORWARDTYPE = "v2"
 _C.MODEL.VSSM.MLP_RATIO = 4.0
 _C.MODEL.VSSM.MLP_ACT_LAYER = "gelu"
@@ -93,8 +93,26 @@ _C.MODEL.VSSM.PATCH_NORM = True
 _C.MODEL.VSSM.NORM_LAYER = "ln"
 _C.MODEL.VSSM.DOWNSAMPLE = "v2"
 _C.MODEL.VSSM.PATCHEMBED = "v2"
-_C.MODEL.VSSM.GMLP = False
-
+_C.MODEL.VSSM.RECURRENT = False
+_C.MODEL.VSSM.SSCORE_TYPE = "None"
+_C.MODEL.VSSM.INTER_BLOCK_SSM = False
+_C.MODEL.VSSM.GRID_SIZE = 0
+_C.MODEL.VSSM.MULTISCALE_RATIO = []
+_C.MODEL.VSSM.MULTISCALE_KSIZE = []
+_C.MODEL.VSSM.CONTINOUS_PATCH = False
+_C.MODEL.VSSM.ADAPTIVE_MERGE = False
+_C.MODEL.VSSM.ADD_CONV = True
+_C.MODEL.VSSM.B1_SEQ = False
+_C.MODEL.VSSM.B1_RATIO = 0.5
+_C.MODEL.VSSM.ADD_SE = False
+_C.MODEL.VSSM.MS_FUSION = None
+_C.MODEL.VSSM.UP_SAMPLE = "interpolate"
+_C.MODEL.VSSM.CONVFFN = False
+_C.MODEL.VSSM.LPU = False
+_C.MODEL.VSSM.SEP_NORM = False
+_C.MODEL.VSSM.MS_STAGE = [0, 1, 2, 3]
+_C.MODEL.VSSM.MS_SPLIT = [1, 3]
+_C.MODEL.VSSM.FFN_DROPOUT = 0.2
 # -----------------------------------------------------------------------------
 # Training settings
 # -----------------------------------------------------------------------------

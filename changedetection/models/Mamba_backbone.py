@@ -1,18 +1,17 @@
-from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d
+from MambaCD.classification.models.vmamba import VSSM
 
 import torch
 import torch.nn as nn
 
 
 class Backbone_VSSM(VSSM):
-    def __init__(self, out_indices=(0, 1, 2, 3), pretrained=None, norm_layer='ln2d', **kwargs):
+    def __init__(self, out_indices=(0, 1, 2, 3), pretrained=None, norm_layer='ln', **kwargs):
         # norm_layer='ln'
         kwargs.update(norm_layer=norm_layer)
         super().__init__(**kwargs)
         self.channel_first = (norm_layer.lower() in ["bn", "ln2d"])
         _NORMLAYERS = dict(
             ln=nn.LayerNorm,
-            ln2d=LayerNorm2d,
             bn=nn.BatchNorm2d,
         )
         norm_layer: nn.Module = _NORMLAYERS.get(norm_layer.lower(), None)        
@@ -51,12 +50,11 @@ class Backbone_VSSM(VSSM):
             if i in self.out_indices:
                 norm_layer = getattr(self, f'outnorm{i}')
                 out = norm_layer(o)
-                if not self.channel_first:
-                    out = out.permute(0, 3, 1, 2).contiguous()
+                out = out.permute(0, 3, 1, 2).contiguous()
                 outs.append(out)
 
         if len(self.out_indices) == 0:
             return x
-        
+
         return outs
 

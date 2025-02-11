@@ -69,7 +69,7 @@ class Trainer(object):
             ) 
         self.deep_model = self.deep_model.cuda()
         self.model_save_path = os.path.join(args.model_param_path, args.dataset,
-                                            args.model_type + '_' + str(time.time()))
+                                            args.model_type + '_' + str(time.time())+'new_VSSM')
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -96,8 +96,6 @@ class Trainer(object):
 
         self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
 
-        self.ssim = SSIM(data_range=1, size_average=True, channel=3)
-
     def training(self):
         best_kc = 0.0
         best_round = []
@@ -117,7 +115,7 @@ class Trainer(object):
             label_clf_t1[label_clf_t1 == 0] = 255
             label_clf_t2[label_clf_t2 == 0] = 255
 
-            output_1, output_semantic_t1, output_semantic_t2, reconstructed_T1, reconstructed_T2 = self.deep_model(pre_change_imgs, post_change_imgs)
+            output_1, output_semantic_t1, output_semantic_t2= self.deep_model(pre_change_imgs, post_change_imgs)
 
             pre_change_imgs = pre_change_imgs.float()
             post_change_imgs = post_change_imgs.float()
@@ -133,11 +131,6 @@ class Trainer(object):
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
 
-            mse_loss_reconstructed_T1 = F.mse_loss(reconstructed_T1, pre_change_imgs)
-            ssim_loss_reconstructed_T1 = 1 - self.ssim(reconstructed_T1, pre_change_imgs)
-            mse_loss_reconstructed_T2 = F.mse_loss(reconstructed_T2, post_change_imgs)
-            ssim_loss_reconstructed_T2 = 1 - self.ssim(reconstructed_T2, post_change_imgs)
-
             # Mask for similarity loss (label == 255)
             similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
     
@@ -152,18 +145,11 @@ class Trainer(object):
             weight_clf = 0.75
             weight_similarity = 0.5
             weight_lovasz = 0.5
-            weight_reconstruction = 1
-            weight_ssim = 0.25
-
-            # Reconstruction losses: sum of MSE and SSIM losses for both views
-            reconstruction_mse_loss = mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2
-            reconstruction_ssim_loss = weight_ssim*(ssim_loss_reconstructed_T1 + ssim_loss_reconstructed_T2)
 
             main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
                          weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ +
                                        weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
-                         weight_similarity * similarity_loss +
-                         weight_reconstruction * (reconstruction_mse_loss + reconstruction_ssim_loss)
+                         weight_similarity * similarity_loss 
             )
 
             final_loss = main_loss
@@ -173,17 +159,12 @@ class Trainer(object):
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                reconstruction_loss = weight_reconstruction * (reconstruction_mse_loss + reconstruction_ssim_loss)
                 print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
                       f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
-                      f'similarity loss is {weight_similarity * similarity_loss}, '
-                      f'reconstruction loss is {reconstruction_loss}')
+                      f'similarity loss is {weight_similarity * similarity_loss}')
                 self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
                 self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
-                self.writer.add_scalar('Loss/Reconstruction_MSE', weight_reconstruction * reconstruction_mse_loss, itera + 1)
-                self.writer.add_scalar('Loss/Reconstruction_SSIM', weight_reconstruction * reconstruction_ssim_loss, itera + 1)
-                self.writer.add_scalar('Loss/Reconstruction', reconstruction_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
@@ -206,7 +187,7 @@ class Trainer(object):
     def validation(self):
         print('---------starting evaluation-----------')
         dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=3, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=6, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
@@ -225,7 +206,7 @@ class Trainer(object):
 
 
                 # input_data = torch.cat([pre_change_imgs, post_change_imgs], dim=1)
-                output_1, output_semantic_t1, output_semantic_t2, recontructed_T1, recontructed_T2 = self.deep_model(pre_change_imgs, post_change_imgs)
+                output_1, output_semantic_t1, output_semantic_t2 = self.deep_model(pre_change_imgs, post_change_imgs)
 
                 labels_cd = labels_cd.cpu().numpy()
                 labels_A = labels_clf_t1.cpu().numpy()

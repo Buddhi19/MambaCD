@@ -56,7 +56,7 @@ def load_checkpoint_ema(config, model, optimizer, lr_scheduler, loss_scaler, log
     return max_accuracy, max_accuracy_ema
 
 
-def load_pretrained_ema(config, model, logger, model_ema: ModelEma=None):
+def load_pretrained_ema(config, model, logger, model_ema: ModelEma=None, load_ema_separately=False):
     logger.info(f"==============> Loading weight {config.MODEL.PRETRAINED} for fine-tuning......")
     checkpoint = torch.load(config.MODEL.PRETRAINED, map_location='cpu')
     
@@ -68,9 +68,7 @@ def load_pretrained_ema(config, model, logger, model_ema: ModelEma=None):
         logger.warning(f"No 'model' found in {config.MODEL.PRETRAINED}! ")
 
     if model_ema is not None:
-        if "model_ema" in checkpoint:
-            logger.info(f"=> loading 'model_ema' separately...")
-        key = "model_ema" if ("model_ema" in checkpoint) else "model"
+        key = "model_ema" if load_ema_separately else "model"
         if key in checkpoint:
             msg = model_ema.ema.load_state_dict(checkpoint[key], strict=False)
             logger.warning(msg)
@@ -82,7 +80,9 @@ def load_pretrained_ema(config, model, logger, model_ema: ModelEma=None):
     torch.cuda.empty_cache()
 
 
-def save_checkpoint_ema(config, epoch, model, max_accuracy, optimizer, lr_scheduler, loss_scaler, logger, model_ema: ModelEma=None, max_accuracy_ema=None):
+def save_checkpoint_ema(config, epoch, model, max_accuracy, optimizer, lr_scheduler,
+                        loss_scaler, logger, model_ema: ModelEma=None, max_accuracy_ema=None,
+                        ckpt_name=None):
     save_state = {'model': model.state_dict(),
                   'optimizer': optimizer.state_dict(),
                   'lr_scheduler': lr_scheduler.state_dict(),
@@ -94,8 +94,10 @@ def save_checkpoint_ema(config, epoch, model, max_accuracy, optimizer, lr_schedu
     if model_ema is not None:
         save_state.update({'model_ema': model_ema.ema.state_dict(),
             'max_accuray_ema': max_accuracy_ema})
-
-    save_path = os.path.join(config.OUTPUT, f'ckpt_epoch_{epoch}.pth')
+    if ckpt_name is None:
+        save_path = os.path.join(config.OUTPUT, f'ckpt_epoch_{epoch}.pth')
+    else:
+        save_path = os.path.join(config.OUTPUT, f'{ckpt_name}.pth')
     logger.info(f"{save_path} saving......")
     torch.save(save_state, save_path)
     logger.info(f"{save_path} saved !!!")

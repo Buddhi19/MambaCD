@@ -30,14 +30,13 @@ from utils.optimizer import build_optimizer
 from utils.logger import create_logger
 from utils.utils import  NativeScalerWithGradNormCount, auto_resume_helper, reduce_tensor
 from utils.utils import load_checkpoint_ema, load_pretrained_ema, save_checkpoint_ema
-
+from utils.vis import visualize_batch
 from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count
+from torch.utils.tensorboard import SummaryWriter
 
 from timm.utils import ModelEma as ModelEma
-
-if torch.multiprocessing.get_start_method() != "spawn":
-    print(f"||{torch.multiprocessing.get_start_method()}||", end="")
-    torch.multiprocessing.set_start_method("spawn", force=True)
+print(f"||{torch.multiprocessing.get_start_method()}||", end="")
+torch.multiprocessing.set_start_method("spawn", force=True)
 
 
 def str2bool(v):
@@ -93,9 +92,7 @@ def parse_option():
     parser.add_argument('--model_ema', type=str2bool, default=True)
     parser.add_argument('--model_ema_decay', type=float, default=0.9999, help='')
     parser.add_argument('--model_ema_force_cpu', type=str2bool, default=False, help='')
-
-    parser.add_argument('--memory_limit_rate', type=float, default=-1, help='limitation of gpu memory use')
-
+    parser.add_argument('--save_every', type=str2bool, default=False, help='')
     args, unparsed = parser.parse_known_args()
 
     config = get_config(args)
@@ -167,13 +164,14 @@ def main(config):
 
     if config.MODEL.RESUME:
         max_accuracy, max_accuracy_ema = load_checkpoint_ema(config, model_without_ddp, optimizer, lr_scheduler, loss_scaler, logger, model_ema)
-        acc1, acc5, loss = validate(config, data_loader_val, model)
-        logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
-        if model_ema is not None:
-            acc1_ema, acc5_ema, loss_ema = validate(config, data_loader_val, model_ema.ema)
-            logger.info(f"Accuracy of the network ema on the {len(dataset_val)} test images: {acc1_ema:.1f}%")
 
         if config.EVAL_MODE:
+            acc1, acc5, loss = validate(config, data_loader_val, model)
+            logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
+            if model_ema is not None:
+                acc1_ema, acc5_ema, loss_ema = validate(config, data_loader_val, model_ema.ema)
+                logger.info(f"Accuracy of the network ema on the {len(dataset_val)} test images: {acc1_ema:.1f}%")
+
             return
 
     if config.MODEL.PRETRAINED and (not config.MODEL.RESUME):
@@ -183,44 +181,65 @@ def main(config):
         if model_ema is not None:
             acc1_ema, acc5_ema, loss_ema = validate(config, data_loader_val, model_ema.ema)
             logger.info(f"Accuracy of the network ema on the {len(dataset_val)} test images: {acc1_ema:.1f}%")
-        
-        if config.EVAL_MODE:
-            return
 
-    if config.THROUGHPUT_MODE and (dist.get_rank() == 0):
-            throughput(data_loader_val, model, logger)
-            if model_ema is not None:
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                throughput(data_loader_val, model_ema.ema, logger)
-            return
+    if config.THROUGHPUT_MODE:
+        throughput(data_loader_val, model, logger)
+        if model_ema is not None:
+            throughput(data_loader_val, model_ema.ema, logger)
+        return
 
     logger.info("Start training")
     start_time = time.time()
+    writer = SummaryWriter((os.path.join(config.OUTPUT,'tensorboard')))
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         data_loader_train.sampler.set_epoch(epoch)
 
-        train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler, loss_scaler, model_ema)
-        if dist.get_rank() == 0 and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1)):
-            save_checkpoint_ema(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, loss_scaler, logger, model_ema, max_accuracy_ema)
+        train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler,
+                        loss_scaler, model_ema)
 
         acc1, acc5, loss = validate(config, data_loader_val, model)
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
-        max_accuracy = max(max_accuracy, acc1)
-        logger.info(f'Max accuracy: {max_accuracy:.2f}%')
+        # Log the accuracy to TensorBoard
+        writer.add_scalar('Accuracy/val', acc1, epoch)
+
+        # Check if current accuracy is higher than the max accuracy
+        if acc1 > max_accuracy:
+            max_accuracy = acc1
+            logger.info(f'New max accuracy: {max_accuracy:.2f}%')
+            # Save the model if this is the best accuracy so far
+            if dist.get_rank() == 0:
+                save_checkpoint_ema(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
+                                    loss_scaler, logger, model_ema, max_accuracy_ema, 'best_ckpt')
+        if dist.get_rank() == 0:
+            save_checkpoint_ema(config,epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
+                                    loss_scaler, logger, model_ema, max_accuracy_ema, 'latest_ckpt')
         if model_ema is not None:
             acc1_ema, acc5_ema, loss_ema = validate(config, data_loader_val, model_ema.ema)
             logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1_ema:.1f}%")
-            max_accuracy_ema = max(max_accuracy_ema, acc1_ema)
-            logger.info(f'Max accuracy ema: {max_accuracy_ema:.2f}%')
 
+            # Check if current EMA accuracy is higher than the max EMA accuracy
+            # Log the EMA accuracy to TensorBoard
+            writer.add_scalar('Accuracy_ema/val', acc1_ema, epoch)
+            if dist.get_rank() == 0:
+                save_checkpoint_ema(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
+                                    loss_scaler, logger, model_ema, max_accuracy_ema, 'latest_ckpt_ema')
 
+            if acc1_ema > max_accuracy_ema:
+                max_accuracy_ema = acc1_ema
+                logger.info(f'New max accuracy ema: {max_accuracy_ema:.2f}%')
+                # Save the model if this is the best EMA accuracy so far
+                if dist.get_rank() == 0:
+                    save_checkpoint_ema(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
+                                        loss_scaler, logger, model_ema, max_accuracy_ema, 'best_ckpt_ema')
+
+    writer.close()
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
 
 
-def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, loss_scaler, model_ema=None):
+def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, loss_scaler, model_ema=None,
+                    ):
     model.train()
     optimizer.zero_grad()
 
@@ -233,8 +252,9 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
     start = time.time()
     end = time.time()
+    nan_count = 0
+
     for idx, (samples, targets) in enumerate(data_loader):
-        torch.cuda.reset_peak_memory_stats()
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
@@ -245,9 +265,27 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
         with torch.cuda.amp.autocast(enabled=config.AMP_ENABLE):
             outputs = model(samples)
+        #nan_count += torch.isnan(outputs).sum().item()
+        #outputs = torch.where(torch.isnan(outputs), torch.zeros_like(outputs), outputs)
         loss = criterion(outputs, targets)
         loss = loss / config.TRAIN.ACCUMULATION_STEPS
 
+        #if loss is nan, set it to 0
+        # if torch.isnan(loss):
+        #     logger.info(f"Loss is nan, set it to 0")
+        #     #check if the outputs contain nan
+        #     if torch.isnan(outputs).any():
+        #         logger.info(f"Outputs contain nan")
+        #         # save the outputs and samples to check
+        #         save_sample_path = '/home/mamba/nan_sample.npy'
+        #         save_output_path = '/home/mamba/nan_output.npy'
+        #         np.save(save_sample_path, samples.cpu().numpy())
+        #         np.save(save_output_path, outputs.detach().cpu().numpy())
+        #         # save the model
+        #         save_model_path = '/home/mamba/nan_model.pth'
+        #         torch.save(model.state_dict(), save_model_path)
+        #
+        #     loss = torch.tensor(0.0).type_as(loss)
         # this attribute is added by timm on one optimizer (adahessian)
         is_second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
         grad_norm = loss_scaler(loss, optimizer, clip_grad=config.TRAIN.CLIP_GRAD,
@@ -282,7 +320,9 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'loss {loss_meter.val:.4f} ({loss_meter.avg:.4f})\t'
                 f'grad_norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
                 f'loss_scale {scaler_meter.val:.4f} ({scaler_meter.avg:.4f})\t'
-                f'mem {memory_used:.0f}MB')
+                f'mem {memory_used:.0f}MB'
+                #f'nan count {nan_count}'
+            )
     epoch_time = time.time() - start
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
 
@@ -305,7 +345,7 @@ def validate(config, data_loader, model):
         # compute output
         with torch.cuda.amp.autocast(enabled=config.AMP_ENABLE):
             output = model(images)
-
+        #visualize_batch(images,before_head)
         # measure accuracy and record loss
         loss = criterion(output, target)
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -338,7 +378,6 @@ def validate(config, data_loader, model):
 @torch.no_grad()
 def throughput(data_loader, model, logger):
     model.eval()
-
     for idx, (images, _) in enumerate(data_loader):
         images = images.cuda(non_blocking=True)
         batch_size = images.shape[0]
@@ -364,11 +403,12 @@ if __name__ == '__main__':
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
         rank = int(os.environ["RANK"])
         world_size = int(os.environ['WORLD_SIZE'])
+        #rank = rank % torch.cuda.device_count()
         print(f"RANK and WORLD_SIZE in environ: {rank}/{world_size}")
     else:
         rank = -1
         world_size = -1
-    torch.cuda.set_device(rank)
+    torch.cuda.set_device(rank % torch.cuda.device_count())
     dist.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
     dist.barrier()
 
@@ -418,10 +458,5 @@ if __name__ == '__main__':
     # print config
     logger.info(config.dump())
     logger.info(json.dumps(vars(args)))
-
-    if args.memory_limit_rate > 0 and args.memory_limit_rate < 1:
-        torch.cuda.set_per_process_memory_fraction(args.memory_limit_rate)
-        usable_memory = torch.cuda.get_device_properties(0).total_memory * args.memory_limit_rate / 1e6
-        print(f"===========> GPU memory is limited to {usable_memory}MB", flush=True)
 
     main(config)
