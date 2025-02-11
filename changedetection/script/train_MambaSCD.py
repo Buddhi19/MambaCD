@@ -187,13 +187,12 @@ class Trainer(object):
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
-                    kappa_n0, Fscd, IoU_mean, Sek, oa, rL = self.validation()
+                    kappa_n0, Fscd, IoU_mean, Sek, oa = self.validation()
                     self.writer.add_scalar('Metrics/Kappa', kappa_n0, itera+1)
                     self.writer.add_scalar('Metrics/F1', Fscd, itera+1)
                     self.writer.add_scalar('Metrics/OA', oa, itera+1)
                     self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera+1)
                     self.writer.add_scalar('Metrics/SeK', Sek, itera+1)
-                    self.writer.add_scaler('Metrics/Reconstruction', rL, itera+1)
                     if Sek > best_kc:
                         torch.save(self.deep_model.state_dict(),
                                    os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
@@ -231,16 +230,6 @@ class Trainer(object):
                 labels_cd = labels_cd.cpu().numpy()
                 labels_A = labels_clf_t1.cpu().numpy()
                 labels_B = labels_clf_t2.cpu().numpy()
-                pre_change_imgs = pre_change_imgs.cpu().numpy()
-                post_change_imgs = post_change_imgs.cpu().numpy()
-                recontructed_T1 = recontructed_T1.cpu().numpy()
-                recontructed_T2 = recontructed_T2.cpu().numpy()
-
-                MSE_loss_T1 = F.mse_loss(recontructed_T1, pre_change_imgs, reduction='none')
-                MSE_loss_T2 = F.mse_loss(recontructed_T2, post_change_imgs, reduction='none')
-
-                total_reconstruction_loss = (MSE_loss_T1 + MSE_loss_T2)
-                mse_loss_reconstructed.append(total_reconstruction_loss)
 
                 change_mask = torch.argmax(output_1, axis=1).cpu().numpy()
 
@@ -260,11 +249,11 @@ class Trainer(object):
                     acc = (acc_A + acc_B) * 0.5
                     acc_meter.update(acc)
 
-        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
+        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 7)
         print(f'Kappa coefficient rate is {kappa_n0}, F1 is {Fscd}, OA is {acc_meter.avg}, '
-              f'mIoU is {IoU_mean}, SeK is {Sek}, Reconstruction loss is {np.mean(mse_loss_reconstructed)}')
+              f'mIoU is {IoU_mean}, SeK is {Sek}')
         
-        return kappa_n0, Fscd, IoU_mean, Sek, acc_meter.avg, np.mean(mse_loss_reconstructed)
+        return kappa_n0, Fscd, IoU_mean, Sek, acc_meter.avg
 
 
 def main():
