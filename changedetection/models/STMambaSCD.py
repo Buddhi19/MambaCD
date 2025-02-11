@@ -80,7 +80,16 @@ class STMambaSCD(nn.Module):
             **clean_kwargs
         )
 
-        self.temporary_decoder = TemporalImageDecoder(
+        self.temporary_decoder_T1 = TemporalImageDecoder(
+            encoder_dims=self.encoder.dims,
+            channel_first=self.encoder.channel_first,
+            norm_layer=norm_layer,
+            ssm_act_layer=ssm_act_layer,
+            mlp_act_layer=mlp_act_layer,
+            **clean_kwargs
+        )
+
+        self.temporary_decoder_T2 = TemporalImageDecoder(
             encoder_dims=self.encoder.dims,
             channel_first=self.encoder.channel_first,
             norm_layer=norm_layer,
@@ -107,9 +116,8 @@ class STMambaSCD(nn.Module):
         output_T1 = self.decoder_T1(pre_features)
         output_T2 = self.decoder_T2(post_features)
 
-        reconstructed_T1 = self.temporary_decoder(pre_features)
-        reconstructed_T2 = self.temporary_decoder(post_features)
-
+        reconstructed_T1 = self.temporary_decoder_T1(pre_features)
+        reconstructed_T2 = self.temporary_decoder_T2(post_features)
 
         output_bcd = self.main_clf_cd(output_bcd)
         output_bcd = F.interpolate(output_bcd, size=pre_data.size()[-2:], mode='bilinear')
