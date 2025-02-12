@@ -68,8 +68,9 @@ class Trainer(object):
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             ) 
         self.deep_model = self.deep_model.cuda()
+        fol = input("Enter the folder name: ")
         self.model_save_path = os.path.join(args.model_param_path, args.dataset,
-                                            args.model_type + '_' + str(time.time()))
+                                            args.model_type + '_' + str(time.time())+fol)
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -153,7 +154,7 @@ class Trainer(object):
             weight_similarity = 0.5
             weight_lovasz = 0.5
             weight_reconstruction = 1
-            weight_ssim = 0.25
+            weight_ssim = 0.1
 
             # Reconstruction losses: sum of MSE and SSIM losses for both views
             reconstruction_mse_loss = mse_loss_reconstructed_T1 + mse_loss_reconstructed_T2
@@ -206,7 +207,7 @@ class Trainer(object):
     def validation(self):
         print('---------starting evaluation-----------')
         dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=3, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
@@ -249,7 +250,7 @@ class Trainer(object):
                     acc = (acc_A + acc_B) * 0.5
                     acc_meter.update(acc)
 
-        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 7)
+        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
         print(f'Kappa coefficient rate is {kappa_n0}, F1 is {Fscd}, OA is {acc_meter.avg}, '
               f'mIoU is {IoU_mean}, SeK is {Sek}')
         
