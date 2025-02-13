@@ -23,7 +23,7 @@ import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import contrastive_loss
+from ChangeDetection.CDlib.loss import ce2_dice1, ce2_dice1_multiclass, contrastive_loss
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -123,11 +123,15 @@ class Trainer(object):
 
             self.optim.zero_grad()
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+            # ce2_dice_loss_cd = ce2_dice1(output_1, label_cd)
+            # ce2_dice_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
+            # ce2_dice_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
 
-            # Lovasz Loss
+            ce2_dice_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            ce2_dice_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
+            ce2_dice_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+
+
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
@@ -138,33 +142,34 @@ class Trainer(object):
             # Similarity loss calculation (e.g., MSE)
             similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
                                          F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-            change_mask = torch.argmax(output_1, axis=1)
-            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, change_mask)
             
+            # change_mask = (label_cd == 0).float()
+            # contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, change_mask)
+
             # Loss weighting
             weight_cd = 1.0
-            weight_clf = 0.75
+            weight_clf = 0.5
             weight_similarity = 0.5
-            weight_lovasz = 0.5
+            weight_lovasz = 0.75
 
-            main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
-                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ +
-                                       weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
-                         weight_similarity * similarity_loss 
+            main_loss = (
+                weight_cd * (ce2_dice_loss_cd + weight_lovasz * lovasz_loss_cd) +
+                weight_clf * (
+                    ce2_dice_loss_clf_t1 + ce2_dice_loss_clf_t2 + 
+                    weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)
+                ) +
+                weight_similarity * similarity_loss
             )
 
             final_loss = main_loss
-
             final_loss.backward()
             self.optim.step()
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
-                      f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
-                      f'similarity loss is {weight_similarity * similarity_loss}')
-                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
+                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce2_dice_loss_cd + weight_lovasz * lovasz_loss_cd)}, classification loss is {weight_clf * (ce2_dice_loss_clf_t1 + ce2_dice_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, similarity loss is {weight_similarity * similarity_loss}')
+                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce2_dice_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight_clf * (ce2_dice_loss_clf_t1 + ce2_dice_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
@@ -188,7 +193,7 @@ class Trainer(object):
     def validation(self):
         print('---------starting evaluation-----------')
         dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=4, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
@@ -230,7 +235,7 @@ class Trainer(object):
                     acc = (acc_A + acc_B) * 0.5
                     acc_meter.update(acc)
 
-        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 7)
+        kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)
         print(f'Kappa coefficient rate is {kappa_n0}, F1 is {Fscd}, OA is {acc_meter.avg}, '
               f'mIoU is {IoU_mean}, SeK is {Sek}')
         

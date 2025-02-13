@@ -22,6 +22,7 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_c
 from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
 from MambaCD.changedetection.models.SemanticDecoder import SemanticDecoder
 from ChangeDetection.TemporalImageDecoder import TemporalImageDecoder
+from ChangeDetection.MultiScaleGuidedAttention import MultiScaleChangeGuidedAttention
 
 class STMambaSCD(nn.Module):
     def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
@@ -95,7 +96,9 @@ class STMambaSCD(nn.Module):
         #     mlp_act_layer=mlp_act_layer,
         #     **clean_kwargs
         # )
-
+        self.change_attention = MultiScaleChangeGuidedAttention(
+                            channels_list=[96, 192, 384, 768] 
+                        )
 
         self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
         self.aux_clf = nn.Conv2d(in_channels=128, out_channels=output_clf, kernel_size=1)
@@ -108,6 +111,11 @@ class STMambaSCD(nn.Module):
 
         # Decoder processing - passing encoder outputs to the decoder
         output_bcd = self.decoder_bcd(pre_features, post_features)
+        
+
+        pre_features = self.change_attention(pre_features, output_bcd)
+        post_features = self.change_attention(post_features, output_bcd)
+
         """
         pre_features -> something with outputbcd
         """
@@ -116,7 +124,7 @@ class STMambaSCD(nn.Module):
 
         # reconstructed_T1 = self.temporary_decoder_T1(pre_features)
         # reconstructed_T2 = self.temporary_decoder_T2(post_features)
-
+        
         output_bcd = self.main_clf_cd(output_bcd)
         output_bcd = F.interpolate(output_bcd, size=pre_data.size()[-2:], mode='bilinear')
 
