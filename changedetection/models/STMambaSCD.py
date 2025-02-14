@@ -97,7 +97,12 @@ class STMambaSCD(nn.Module):
         #     **clean_kwargs
         # )
         self.change_attention = MultiScaleChangeGuidedAttention(
-                            channels_list=[96, 192, 384, 768] 
+                            channels_list=[
+                                128,
+                                256,
+                                512,
+                                1024
+                            ]
                         )
 
         self.main_clf_cd = nn.Conv2d(in_channels=128, out_channels=output_cd, kernel_size=1)
