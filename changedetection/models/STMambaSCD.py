@@ -81,24 +81,6 @@ class STMambaSCD(nn.Module):
             **clean_kwargs
         )
 
-        self.temporary_decoder_T1 = TemporalImageDecoder(
-            encoder_dims=self.encoder.dims,
-            channel_first=self.encoder.channel_first,
-            norm_layer=norm_layer,
-            ssm_act_layer=ssm_act_layer,
-            mlp_act_layer=mlp_act_layer,
-            **clean_kwargs
-        )
-
-        self.temporary_decoder_T2 = TemporalImageDecoder(
-            encoder_dims=self.encoder.dims,
-            channel_first=self.encoder.channel_first,
-            norm_layer=norm_layer,
-            ssm_act_layer=ssm_act_layer,
-            mlp_act_layer=mlp_act_layer,
-            **clean_kwargs
-        )
-
         self.change_attention_1 = MultiScaleChangeGuidedAttention(
                             channels_list=[
                                 128,
@@ -139,9 +121,6 @@ class STMambaSCD(nn.Module):
         output_T1 = self.decoder_T1(pre_features)
         output_T2 = self.decoder_T2(post_features)
 
-        reconstructed_T1 = self.temporary_decoder_T1(pre_features)
-        reconstructed_T2 = self.temporary_decoder_T2(post_features)
-
         output_bcd = self.main_clf_cd(output_bcd)
         output_bcd = F.interpolate(output_bcd, size=pre_data.size()[-2:], mode='bilinear')
 
@@ -151,7 +130,4 @@ class STMambaSCD(nn.Module):
         output_T2 = self.aux_clf(output_T2)
         output_T2 = F.interpolate(output_T2, size=post_data.size()[-2:], mode='bilinear')
 
-        reconstructed_T1 = F.interpolate(reconstructed_T1, size=pre_data.size()[-2:], mode='bilinear')
-        reconstructed_T2 = F.interpolate(reconstructed_T2, size=post_data.size()[-2:], mode='bilinear')
-
-        return output_bcd, output_T1, output_T2, reconstructed_T1, reconstructed_T2
+        return output_bcd, output_T1, output_T2
