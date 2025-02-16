@@ -23,7 +23,7 @@ import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import contrastive_loss
+from ChangeDetection.CDlib.loss import contrastive_loss, ce2_dice1, ce2_dice1_multiclass
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -125,9 +125,13 @@ class Trainer(object):
 
             self.optim.zero_grad()
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+            # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
+            # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+
+            ce_loss_cd = ce2_dice1(output_1, label_cd, ignore_index=255)
+            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
+            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
 
             # Lovasz Loss
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
@@ -145,7 +149,7 @@ class Trainer(object):
             weight_cd = 1.0
             weight_clf = 0.5
             weight_similarity = 0.5
-            weight_lovasz = 0.75
+            weight_lovasz = 0.5
 
 
             main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
