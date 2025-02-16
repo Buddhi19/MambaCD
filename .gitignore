@@ -21,6 +21,7 @@ analyze/show
 cross_selective_scan
 
 classification/models/pscan.py
+pretrained/
 
 # we do not release code of heat series
 classification/configs/heat

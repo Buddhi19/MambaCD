@@ -145,8 +145,8 @@ class Trainer(object):
             # Similarity loss calculation (e.g., MSE)
             similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
                                          F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-            change_mask = torch.argmax(output_1, axis=1)
-            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, change_mask)
+
+            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, label_cd)
             
             # Loss weighting
             weight_cd = 1.0
@@ -239,6 +239,9 @@ class Trainer(object):
 
                 preds_A[change_mask == 0] = 0
                 preds_B[change_mask == 0] = 0
+
+                if (itera+1)%100 == 0:
+                    print(f'iter is {itera+1}')
 
                 for (pred_A, pred_B, label_A, label_B) in zip(preds_A, preds_B, labels_A, labels_B):
                     acc_A, valid_sum_A = accuracy(pred_A, label_A)
