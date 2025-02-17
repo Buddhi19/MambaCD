@@ -19,6 +19,7 @@ ckpt
 analyze/show
 
 cross_selective_scan
+pretrained/
 
 classification/models/pscan.py
 pretrained/
