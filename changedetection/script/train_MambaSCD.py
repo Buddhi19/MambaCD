@@ -23,7 +23,7 @@ import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import contrastive_loss
+from ChangeDetection.CDlib.loss import contrastive_loss, ce2_dice1, ce2_dice1_multiclass
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -125,9 +125,13 @@ class Trainer(object):
 
             self.optim.zero_grad()
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+            # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
+            # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+
+            ce_loss_cd = ce2_dice1(output_1, label_cd, ignore_index=255)
+            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
+            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
 
             # Lovasz Loss
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
@@ -145,8 +149,6 @@ class Trainer(object):
             # Similarity loss calculation (e.g., MSE)
             similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
                                          F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-            change_mask = torch.argmax(output_1, axis=1)
-            contrastive_loss_ = contrastive_loss(output_semantic_t1, output_semantic_t2, change_mask)
             
             # Loss weighting
             weight_cd = 1.0
@@ -161,7 +163,7 @@ class Trainer(object):
             reconstruction_ssim_loss = weight_ssim*(ssim_loss_reconstructed_T1 + ssim_loss_reconstructed_T2)
 
             main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
-                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ +
+                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 +
                                        weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
                          weight_similarity * similarity_loss +
                          weight_reconstruction * (reconstruction_mse_loss + reconstruction_ssim_loss)
@@ -176,11 +178,10 @@ class Trainer(object):
             if (itera + 1) % 10 == 0:
                 reconstruction_loss = weight_reconstruction * (reconstruction_mse_loss + reconstruction_ssim_loss)
                 print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
-                      f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
-                      f'similarity loss is {weight_similarity * similarity_loss}, '
-                      f'reconstruction loss is {reconstruction_loss}')
+                      f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
+                      f'similarity loss is {weight_similarity * similarity_loss}')
                 self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + contrastive_loss_ + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
                 self.writer.add_scalar('Loss/Reconstruction_MSE', weight_reconstruction * reconstruction_mse_loss, itera + 1)
                 self.writer.add_scalar('Loss/Reconstruction_SSIM', weight_reconstruction * reconstruction_ssim_loss, itera + 1)
@@ -213,7 +214,6 @@ class Trainer(object):
 
         preds_all = []
         labels_all = []
-        mse_loss_reconstructed = []
         with torch.no_grad():
             for itera, data in enumerate(val_data_loader):
                 pre_change_imgs, post_change_imgs, labels_cd, labels_clf_t1, labels_clf_t2, _ = data
@@ -239,6 +239,9 @@ class Trainer(object):
 
                 preds_A[change_mask == 0] = 0
                 preds_B[change_mask == 0] = 0
+
+                if itera % 100 == 0:
+                    print(f'iter is {itera}')
 
                 for (pred_A, pred_B, label_A, label_B) in zip(preds_A, preds_B, labels_A, labels_B):
                     acc_A, valid_sum_A = accuracy(pred_A, label_A)

@@ -342,3 +342,38 @@ def random_crop_mcd(pre_img, post_img, label_cd, label_1, label_2, crop_size, me
     label_2 = pad_label_2[H_start:H_end, W_start:W_end]
 
     return pre_img, post_img, label_cd, label_1, label_2
+
+def random_photometric_imgs(img):
+    pil_img = Image.fromarray(img.astype('uint8'))
+    
+    # Define transformation parameters
+    params = {
+        'brightness': {
+            'mean': 1.0,
+            'std': 0.1,  # Increased from 0.01 for meaningful variation
+            'range': (0.8, 1.2)  # Safer range than (0.5, 1.5)
+        },
+        'contrast': {
+            'mean': 1.0,
+            'std': 0.1,
+            'range': (0.9, 1.1)
+        },
+        'saturation': {
+            'mean': 1.0,
+            'std': 0.05,  
+            'range': (0.9, 1.1)
+        }
+    }
+
+    for transform in ['brightness', 'contrast', 'saturation']:
+        factor = random.gauss(params[transform]['mean'], params[transform]['std'])
+        factor = np.clip(factor, *params[transform]['range'])
+        
+        if transform == 'brightness':
+            pil_img = ImageEnhance.Brightness(pil_img).enhance(factor)
+        elif transform == 'contrast':
+            pil_img = ImageEnhance.Contrast(pil_img).enhance(factor)
+        elif transform == 'saturation':
+            pil_img = ImageEnhance.Color(pil_img).enhance(factor)
+
+    return np.array(pil_img)
