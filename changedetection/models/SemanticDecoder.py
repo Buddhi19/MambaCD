@@ -16,74 +16,74 @@ class SemanticDecoder(nn.Module):
         self.st_block_4_semantic = nn.Sequential(
             nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-1], out_channels=128),
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            SELECTED_MODEL(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_3_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            SELECTED_MODEL(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_2_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            SELECTED_MODEL(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_1_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            SELECTED_MODEL(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )           
 

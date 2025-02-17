@@ -69,8 +69,7 @@ class Trainer(object):
             ) 
         self.deep_model = self.deep_model.cuda()
         fol = input("Enter the folder name: ")
-        self.model_save_path = os.path.join(args.model_param_path, args.dataset,
-                                            args.model_type + '_' + str(time.time())+fol)
+        self.model_save_path = os.path.join(args.model_param_path, fol)
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -155,7 +154,7 @@ class Trainer(object):
             weight_clf = 0.75
             weight_similarity = 0.5
             weight_lovasz = 0.5
-            weight_reconstruction = 1
+            weight_reconstruction = 0.8
             weight_ssim = 0.1
 
             # Reconstruction losses: sum of MSE and SSIM losses for both views
@@ -179,7 +178,8 @@ class Trainer(object):
                 reconstruction_loss = weight_reconstruction * (reconstruction_mse_loss + reconstruction_ssim_loss)
                 print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
                       f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
-                      f'similarity loss is {weight_similarity * similarity_loss}')
+                      f'similarity loss is {weight_similarity * similarity_loss}',
+                      f'reconstruction loss is {reconstruction_loss}')
                 self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
                 self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
                 self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
@@ -195,7 +195,7 @@ class Trainer(object):
                     self.writer.add_scalar('Metrics/OA', oa, itera+1)
                     self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera+1)
                     self.writer.add_scalar('Metrics/SeK', Sek, itera+1)
-                    if Sek > best_kc:
+                    if Sek > best_kc and Sek > 0.245:
                         torch.save(self.deep_model.state_dict(),
                                    os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
                         best_kc = Sek
@@ -208,7 +208,7 @@ class Trainer(object):
     def validation(self):
         print('---------starting evaluation-----------')
         dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=4, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=2, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
