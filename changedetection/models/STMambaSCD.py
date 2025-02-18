@@ -23,7 +23,7 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_c
 from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
 from MambaCD.changedetection.models.SemanticDecoder import SemanticDecoder
 from ChangeDetection.TemporalImageDecoder import TemporalImageDecoder
-from ChangeDetection.MultiScaleGuidedAttention import MultiScaleChangeGuidedAttention,MultiScaleChangeGuidedAttentionV2
+from ChangeDetection.MultiScaleGuidedAttention import MultiScaleChangeGuidedAttention
 
 class STMambaSCD(nn.Module):
     def __init__(self, output_cd, output_clf, pretrained,  **kwargs):
@@ -99,7 +99,7 @@ class STMambaSCD(nn.Module):
             **clean_kwargs
         )
 
-        self.change_attention_1 = MultiScaleChangeGuidedAttentionV2(
+        self.change_attention_1 = MultiScaleChangeGuidedAttention(
                             channels_list=[
                                 128,
                                 256,
@@ -108,7 +108,7 @@ class STMambaSCD(nn.Module):
                             ]
                         )
         
-        self.change_attention_2 = MultiScaleChangeGuidedAttentionV2(
+        self.change_attention_2 = MultiScaleChangeGuidedAttention(
                             channels_list=[
                                 128,
                                 256,
