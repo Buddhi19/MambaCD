@@ -88,10 +88,13 @@ class SemanticDecoder(nn.Module):
         )           
 
         self.trans_layer_3 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-2], out_channels=128),
+                                          SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
         self.trans_layer_2 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-3], out_channels=128),
+                                           SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
         self.trans_layer_1 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-4], out_channels=128),
+                                             SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
 
 
