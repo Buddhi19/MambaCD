@@ -14,6 +14,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from pytorch_msssim import SSIM
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
@@ -21,6 +22,10 @@ from MambaCD.changedetection.models.STMambaSCD import STMambaSCD
 import MambaCD.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
 from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
+
+from ChangeDetection.CDlib.loss import contrastive_loss, ce2_dice1, ce2_dice1_multiclass
+
+from torch.utils.tensorboard import SummaryWriter
 
 class Trainer(object):
     def __init__(self, args):
@@ -63,8 +68,8 @@ class Trainer(object):
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             ) 
         self.deep_model = self.deep_model.cuda()
-        self.model_save_path = os.path.join(args.model_param_path, args.dataset,
-                                            args.model_type + '_' + str(time.time()))
+        fol = input("Enter the folder name: ")
+        self.model_save_path = os.path.join(args.model_param_path, fol)
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -87,10 +92,11 @@ class Trainer(object):
                                  lr=args.learning_rate,
                                  weight_decay=args.weight_decay)
 
-
-
         self.scheduler = StepLR(self.optim, step_size=10000, gamma=0.5)
 
+        self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
+
+        self.ssim = SSIM(data_range=1, size_average=True, channel=3)
 
     def training(self):
         best_kc = 0.0
@@ -113,38 +119,66 @@ class Trainer(object):
 
             output_1, output_semantic_t1, output_semantic_t2 = self.deep_model(pre_change_imgs, post_change_imgs)
 
+            pre_change_imgs = pre_change_imgs.float()
+            post_change_imgs = post_change_imgs.float()
+
             self.optim.zero_grad()
 
-            ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
+            # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
+            # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
+
+            ce_loss_cd = ce2_dice1(output_1, label_cd, ignore_index=255)
+            ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
+            ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
+
+            # Lovasz Loss
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
-
-            ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
-
-            ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
 
             # Mask for similarity loss (label == 255)
             similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
     
             # Similarity loss calculation (e.g., MSE)
-            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
-
+            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
+                                         F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
             
-            main_loss = ce_loss_cd + 0.5 * (ce_loss_clf_t1 + ce_loss_clf_t2 + 0.5 * similarity_loss) + 0.75 * (lovasz_loss_cd + 0.5 * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))
+            # Loss weighting
+            weight_cd = 1.0
+            weight_clf = 0.75
+            weight_similarity = 0.5
+            weight_lovasz = 0.5
+
+            main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
+                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 +
+                                       weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
+                         weight_similarity * similarity_loss
+            )
+
             final_loss = main_loss
 
             final_loss.backward()
-
             self.optim.step()
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {ce_loss_cd + lovasz_loss_cd}, classification loss is {(ce_loss_clf_t1 + ce_loss_clf_t2 + lovasz_loss_clf_t1 + lovasz_loss_clf_t2) / 2}')
+                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
+                      f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
+                      f'similarity loss is {weight_similarity * similarity_loss}')
+                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
+                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
+                self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
+                self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     kappa_n0, Fscd, IoU_mean, Sek, oa = self.validation()
-                    if Sek > best_kc:
+                    self.writer.add_scalar('Metrics/Kappa', kappa_n0, itera+1)
+                    self.writer.add_scalar('Metrics/F1', Fscd, itera+1)
+                    self.writer.add_scalar('Metrics/OA', oa, itera+1)
+                    self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera+1)
+                    self.writer.add_scalar('Metrics/SeK', Sek, itera+1)
+                    if Sek > best_kc and Sek > 0.245:
                         torch.save(self.deep_model.state_dict(),
                                    os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
                         best_kc = Sek
@@ -152,11 +186,12 @@ class Trainer(object):
                     self.deep_model.train()
 
         print('The accuracy of the best round is ', best_round)
+        self.writer.close()
 
     def validation(self):
         print('---------starting evaluation-----------')
         dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=8, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
@@ -184,19 +219,21 @@ class Trainer(object):
 
                 preds_A = torch.argmax(output_semantic_t1, dim=1).cpu().numpy()
                 preds_B = torch.argmax(output_semantic_t2, dim=1).cpu().numpy()
-                
 
-                preds_scd = (preds_A - 1) * 6 + preds_B
-                preds_scd[change_mask == 0] = 0
+                preds_A[change_mask == 0] = 0
+                preds_B[change_mask == 0] = 0
 
-                labels_scd = (labels_A - 1) * 6 + labels_B
-                labels_scd[labels_cd == 0] = 0
+                if itera % 100 == 0:
+                    print(f'iter is {itera}')
 
-                for (pred_scd, label_scd) in zip(preds_scd, labels_scd):
-                    acc_A, valid_sum_A = accuracy(pred_scd, label_scd)
-                    preds_all.append(pred_scd)
-                    labels_all.append(label_scd)
-                    acc = acc_A
+                for (pred_A, pred_B, label_A, label_B) in zip(preds_A, preds_B, labels_A, labels_B):
+                    acc_A, valid_sum_A = accuracy(pred_A, label_A)
+                    acc_B, valid_sum_B = accuracy(pred_B, label_B)
+                    preds_all.append(pred_A)
+                    preds_all.append(pred_B)
+                    labels_all.append(label_A)
+                    labels_all.append(label_B)
+                    acc = (acc_A + acc_B) * 0.5
                     acc_meter.update(acc)
 
         kappa_n0, Fscd, IoU_mean, Sek = SCDD_eval_all(preds_all, labels_all, 37)

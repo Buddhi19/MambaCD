@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
-from ChangeDetection.ConvMamba import ConvMamba
+from ChangeDetection.ConvMamba import ConvMamba, Conv1DMamba, Conv1DMamba_v2
+
+
+SELECTED_MODEL = Conv1DMamba_v2
 
 
 class SemanticDecoder(nn.Module):
@@ -13,82 +16,85 @@ class SemanticDecoder(nn.Module):
         self.st_block_4_semantic = nn.Sequential(
             nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-1], out_channels=128),
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_3_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_2_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
         self.st_block_1_semantic = nn.Sequential(
             Permute(0, 2, 3, 1) if not channel_first else nn.Identity(),
-            # VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
-            #     ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
-            #     ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
-            #     forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
-            #     gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
-            ConvMamba(
-                in_channels=128,
-                encoder_dims=encoder_dims,
-                norm_layer=norm_layer,
-                channel_first=channel_first,
-                ssm_act_layer=ssm_act_layer,
-                mlp_act_layer=mlp_act_layer,
-                **kwargs
-            ),
+            VSSBlock(hidden_dim=128, drop_path=0.1, norm_layer=norm_layer, channel_first=channel_first,
+                ssm_d_state=kwargs['ssm_d_state'], ssm_ratio=kwargs['ssm_ratio'], ssm_dt_rank=kwargs['ssm_dt_rank'], ssm_act_layer=ssm_act_layer,
+                ssm_conv=kwargs['ssm_conv'], ssm_conv_bias=kwargs['ssm_conv_bias'], ssm_drop_rate=kwargs['ssm_drop_rate'], ssm_init=kwargs['ssm_init'],
+                forward_type=kwargs['forward_type'], mlp_ratio=kwargs['mlp_ratio'], mlp_act_layer=mlp_act_layer, mlp_drop_rate=kwargs['mlp_drop_rate'],
+                gmlp=kwargs['gmlp'], use_checkpoint=kwargs['use_checkpoint']),
+            # SELECTED_MODEL(
+            #     in_channels=128,
+            #     encoder_dims=encoder_dims,
+            #     norm_layer=norm_layer,
+            #     channel_first=channel_first,
+            #     ssm_act_layer=ssm_act_layer,
+            #     mlp_act_layer=mlp_act_layer,
+            #     **kwargs
+            # ),
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )           
 
         self.trans_layer_3 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-2], out_channels=128),
+                                          SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
         self.trans_layer_2 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-3], out_channels=128),
+                                           SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
         self.trans_layer_1 = nn.Sequential(nn.Conv2d(kernel_size=1, in_channels=encoder_dims[-4], out_channels=128),
+                                             SqueezeExcitation(128),
                                           nn.BatchNorm2d(128), nn.ReLU())
 
 
@@ -147,6 +153,8 @@ class ResBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.downsample = downsample
 
+        self.se = SqueezeExcitation(out_channels)
+
     def forward(self, x):
         identity = x
 
@@ -157,6 +165,8 @@ class ResBlock(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
 
+        out = self.se(out)
+
         if self.downsample is not None:
             identity = self.downsample(x)
 
@@ -164,3 +174,20 @@ class ResBlock(nn.Module):
         out = self.relu(out)
 
         return out
+
+class SqueezeExcitation(nn.Module):
+    def __init__(self, channels, reduction_ratio=16):
+        super().__init__()
+        self.squeeze = nn.AdaptiveAvgPool2d(1)
+        self.excitation = nn.Sequential(
+            nn.Linear(channels, channels // reduction_ratio),
+            nn.ReLU(inplace=True),
+            nn.Linear(channels // reduction_ratio, channels),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.squeeze(x).view(b, c)
+        y = self.excitation(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
