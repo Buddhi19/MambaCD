@@ -3,8 +3,8 @@ import torch.nn.functional as F
 
 import torch
 import torch.nn as nn
-from MambaCD.changedetection.models.Mamba_backbone import Backbone_VSSM
-from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
+from RemoteSensing.changedetection.models.Mamba_backbone import Backbone_VSSM
+from RemoteSensing.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
 import os
 import time
 import math
@@ -12,7 +12,7 @@ import copy
 from functools import partial
 from typing import Optional, Callable, Any
 from collections import OrderedDict
-from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
+from RemoteSensing.changedetection.models.ChangeDecoder import ChangeDecoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -68,7 +68,7 @@ class STMambaBCD(nn.Module):
         post_features = self.encoder(post_data)
 
         # Decoder processing - passing encoder outputs to the decoder
-        output = self.decoder(pre_features, post_features)
+        output, _ = self.decoder(pre_features, post_features)
 
         output = self.main_clf(output)
         output = F.interpolate(output, size=pre_data.size()[-2:], mode='bilinear')

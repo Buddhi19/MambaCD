@@ -8,22 +8,21 @@ import time
 
 import numpy as np
 
-from MambaCD.changedetection.configs.config import get_config
+from RemoteSensing.changedetection.configs.config import get_config
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from pytorch_msssim import SSIM
 from tqdm import tqdm
-from MambaCD.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader
-from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.STMambaSCD import STMambaSCD
-import MambaCD.changedetection.utils_func.lovasz_loss as L
+from RemoteSensing.changedetection.datasets.make_data_loader import SemanticChangeDetectionDatset, make_data_loader, SemanticChangeDetectionDatset_LandSat
+from RemoteSensing.changedetection.utils_func.metrics import Evaluator
+from RemoteSensing.changedetection.models.STMambaSCD import STMambaSCD
+import RemoteSensing.changedetection.utils_func.lovasz_loss as L
 from torch.optim.lr_scheduler import StepLR
-from MambaCD.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
+from RemoteSensing.changedetection.utils_func.mcd_utils import accuracy, SCDD_eval_all, AverageMeter
 
-from ChangeDetection.CDlib.loss import contrastive_loss, ce2_dice1, ce2_dice1_multiclass
+from RemoteSensing.changedetection.utils_func.loss import contrastive_loss, ce2_dice1, ce2_dice1_multiclass, SeK_Loss
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -68,8 +67,7 @@ class Trainer(object):
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             ) 
         self.deep_model = self.deep_model.cuda()
-        fol = input("Enter the folder name: ")
-        self.model_save_path = os.path.join(args.model_param_path, fol)
+        self.model_save_path = os.path.join(args.model_param_path,f"Modified_landsat_SeKLoss_1")
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -96,14 +94,17 @@ class Trainer(object):
 
         self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
 
-        self.ssim = SSIM(data_range=1, size_average=True, channel=3)
-
     def training(self):
         best_kc = 0.0
         best_round = []
         torch.cuda.empty_cache()
         elem_num = len(self.train_data_loader)
         train_enumerator = enumerate(self.train_data_loader)
+        sek_criterion = SeK_Loss(
+            num_classes=7,  # SECOND dataset classes (exclude non-change)
+            non_change_class=0,
+            beta=1.5
+        ).cuda()
         for _ in tqdm(range(elem_num)):
             itera, data = train_enumerator.__next__()
             pre_change_imgs, post_change_imgs, label_cd, label_clf_t1, label_clf_t2, _ = data
@@ -114,6 +115,8 @@ class Trainer(object):
             label_clf_t1 = label_clf_t1.cuda().long()
             label_clf_t2 = label_clf_t2.cuda().long()
 
+            change_mask = (label_cd != 0).float()
+
             label_clf_t1[label_clf_t1 == 0] = 255
             label_clf_t2[label_clf_t2 == 0] = 255
 
@@ -122,65 +125,83 @@ class Trainer(object):
             pre_change_imgs = pre_change_imgs.float()
             post_change_imgs = post_change_imgs.float()
 
-            self.optim.zero_grad()
+            sek_loss_value = sek_criterion(
+                output_semantic_t1, 
+                output_semantic_t2,
+                label_clf_t1,
+                label_clf_t2,
+                change_mask
+            )
 
-            # ce_loss_cd = F.cross_entropy(output_1, label_cd, ignore_index=255)
-            # ce_loss_clf_t1 = F.cross_entropy(output_semantic_t1, label_clf_t1, ignore_index=255)
-            # ce_loss_clf_t2 = F.cross_entropy(output_semantic_t2, label_clf_t2, ignore_index=255)
-
-            ce_loss_cd = ce2_dice1(output_1, label_cd, ignore_index=255)
+            # ================== Auxiliary Losses ==================
+            # 1. Semantic segmentation losses
+            ce_loss_cd = ce2_dice1(output_1, label_cd)
             ce_loss_clf_t1 = ce2_dice1_multiclass(output_semantic_t1, label_clf_t1)
             ce_loss_clf_t2 = ce2_dice1_multiclass(output_semantic_t2, label_clf_t2)
-
-            # Lovasz Loss
+            
+            # 2. Boundary refinement
             lovasz_loss_cd = L.lovasz_softmax(F.softmax(output_1, dim=1), label_cd, ignore=255)
             lovasz_loss_clf_t1 = L.lovasz_softmax(F.softmax(output_semantic_t1, dim=1), label_clf_t1, ignore=255)
             lovasz_loss_clf_t2 = L.lovasz_softmax(F.softmax(output_semantic_t2, dim=1), label_clf_t2, ignore=255)
-
-            # Mask for similarity loss (label == 255)
-            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1).expand_as(output_semantic_t1)
-    
-            # Similarity loss calculation (e.g., MSE)
-            similarity_loss = F.mse_loss(F.softmax(output_semantic_t1, dim=1) * similarity_mask, 
-                                         F.softmax(output_semantic_t2, dim=1) * similarity_mask, reduction='mean')
             
-            # Loss weighting
-            weight_cd = 1.0
-            weight_clf = 0.75
-            weight_similarity = 0.5
-            weight_lovasz = 0.5
-
-            main_loss = (weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd) +
-                         weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 +
-                                       weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)) +
-                         weight_similarity * similarity_loss
+            # 3. Temporal consistency 
+            similarity_mask = (label_clf_t1 == 255).float().unsqueeze(1)
+            similarity_loss = F.mse_loss(
+                F.softmax(output_semantic_t1, dim=1) * similarity_mask,
+                F.softmax(output_semantic_t2, dim=1) * similarity_mask,
+                reduction='mean'
             )
 
-            final_loss = main_loss
+            # ================== Loss Weighting ==================
+            weights = {
+                'sek': 0,
+                'bcd': 1,
+                'ce': 0.5,
+                'lovasz': 0.5,
+                'similarity': 0.05
+            }
 
-            final_loss.backward()
+            if (itera > 20000):
+                weights['sek'] = 1.4
+                weights['bcd'] = 0.4
+                weights['ce'] = 0.3
+                weights['lovasz'] = 0.4
+                weights['similarity'] = 0.3
+
+            total_loss = (
+                weights['sek'] * sek_loss_value +
+                weights['bcd'] * ce_loss_cd +
+                weights['ce'] * (ce_loss_clf_t1 + ce_loss_clf_t2) +
+                weights['lovasz'] * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2 + lovasz_loss_cd) +
+                weights['similarity'] * similarity_loss
+            )
+
+            # Backpropagation
+            self.optim.zero_grad()
+            total_loss.backward()
             self.optim.step()
             self.scheduler.step()
 
             if (itera + 1) % 10 == 0:
-                print(f'iter is {itera + 1}, change detection loss is {weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd)}, '
-                      f'classification loss is {weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2))}, '
-                      f'similarity loss is {weight_similarity * similarity_loss}')
-                self.writer.add_scalar('Loss/ChangeDetection', weight_cd * (ce_loss_cd + weight_lovasz * lovasz_loss_cd), itera + 1)
-                self.writer.add_scalar('Loss/Classification', weight_clf * (ce_loss_clf_t1 + ce_loss_clf_t2 + weight_lovasz * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)), itera + 1)
-                self.writer.add_scalar('Loss/Similarity', weight_similarity * similarity_loss, itera + 1)
-                self.writer.add_scalar('Loss/Total', final_loss, itera + 1)
-                if (itera + 1) % 500 == 0:
+                print(f'iter is {itera + 1 + self.args.start_iter}, change detection loss is {weights["bcd"] * ce_loss_cd}, '
+                      f'classification loss is {weights["ce"] * (ce_loss_clf_t1 + ce_loss_clf_t2) + weights["lovasz"] * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2)}, '
+                      f'SeK loss is {1.4 * sek_loss_value}')
+                self.writer.add_scalar('Loss/ChangeDetection', weights["bcd"] * ce_loss_cd, itera + 1 + self.args.start_iter)
+                self.writer.add_scalar('Loss/Segmentation', 1.4 * sek_loss_value, itera + 1 + self.args.start_iter)
+                self.writer.add_scalar('Loss/Classification', weights["ce"] * (ce_loss_clf_t1 + ce_loss_clf_t2) + weights["lovasz"] * (lovasz_loss_clf_t1 + lovasz_loss_clf_t2), itera + 1 + self.args.start_iter)
+                self.writer.add_scalar('Loss/Similarity', weights["similarity"] * similarity_loss, itera + 1 + self.args.start_iter)
+                self.writer.add_scalar('Loss/Total', total_loss, itera + 1 + self.args.start_iter)
+                if ((itera + 1) % 1000 == 0 and itera > 40000) or ((itera + 1) % 5000 == 0 and itera <= 40000):
                     self.deep_model.eval()
                     kappa_n0, Fscd, IoU_mean, Sek, oa = self.validation()
-                    self.writer.add_scalar('Metrics/Kappa', kappa_n0, itera+1)
-                    self.writer.add_scalar('Metrics/F1', Fscd, itera+1)
-                    self.writer.add_scalar('Metrics/OA', oa, itera+1)
-                    self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera+1)
-                    self.writer.add_scalar('Metrics/SeK', Sek, itera+1)
-                    if Sek > best_kc and Sek > 0.245:
+                    self.writer.add_scalar('Metrics/Kappa', kappa_n0, itera + 1 + self.args.start_iter)
+                    self.writer.add_scalar('Metrics/F1', Fscd, itera + 1 + self.args.start_iter)
+                    self.writer.add_scalar('Metrics/OA', oa, itera + 1 + self.args.start_iter)
+                    self.writer.add_scalar('Metrics/mIoU', IoU_mean, itera + 1 + self.args.start_iter)
+                    self.writer.add_scalar('Metrics/SeK', Sek, itera + 1 + self.args.start_iter)
+                    if Sek > best_kc:
                         torch.save(self.deep_model.state_dict(),
-                                   os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
+                                    os.path.join(self.model_save_path, f'{itera + 1 + self.args.start_iter}_model_{Sek:.3f}.pth'))
                         best_kc = Sek
                         best_round = [kappa_n0, Fscd, IoU_mean, Sek, oa ]
                     self.deep_model.train()
@@ -190,8 +211,13 @@ class Trainer(object):
 
     def validation(self):
         print('---------starting evaluation-----------')
-        dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=4, num_workers=4, drop_last=False)
+        dataset = None
+        if self.args.dataset == 'SECOND':
+            dataset = SemanticChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
+        elif self.args.dataset == 'LandSat':
+            dataset = SemanticChangeDetectionDatset_LandSat(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
+
+        val_data_loader = DataLoader(dataset, batch_size=8, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         acc_meter = AverageMeter()
 
@@ -245,7 +271,7 @@ class Trainer(object):
 
 def main():
     parser = argparse.ArgumentParser(description="Training on SECOND dataset")
-    parser.add_argument('--cfg', type=str, default='/home/songjian/project/MambaCD/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
+    parser.add_argument('--cfg', type=str, default='/home/songjian/project/RemoteSensing/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
     parser.add_argument(
         "--opts",
         help="Modify config options by adding 'KEY VALUE' pairs. ",

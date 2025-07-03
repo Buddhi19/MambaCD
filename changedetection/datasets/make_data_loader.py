@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-import MambaCD.changedetection.datasets.imutils as imutils
+import RemoteSensing.changedetection.datasets.imutils as imutils
 
 
 def img_loader(path):
@@ -94,6 +94,63 @@ class SemanticChangeDetectionDatset(Dataset):
             pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_crop_mcd(pre_img, post_img, cd_label, t1_label, t2_label, self.crop_size)
             pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_fliplr_mcd(pre_img, post_img, cd_label, t1_label, t2_label)
             pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_flipud_mcd(pre_img, post_img, cd_label, t1_label, t2_label)
+            pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_rot_mcd(pre_img, post_img, cd_label, t1_label, t2_label) 
+
+        pre_img = imutils.normalize_img(pre_img)  # imagenet normalization
+        pre_img = np.transpose(pre_img, (2, 0, 1))
+
+        post_img = imutils.normalize_img(post_img)  # imagenet normalization
+        post_img = np.transpose(post_img, (2, 0, 1))
+
+        return pre_img, post_img, cd_label, t1_label, t2_label
+
+    def __getitem__(self, index):
+        pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index])
+        post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index])
+        T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index])
+        T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index])
+        cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index])
+
+        pre_img = self.loader(pre_path)
+        post_img = self.loader(post_path)
+        t1_label = self.loader(T1_label_path)
+        t2_label = self.loader(T2_label_path)
+        cd_label = self.loader(cd_label_path)
+        cd_label = cd_label / 255
+
+        if 'train' in self.data_pro_type:
+            pre_img, post_img, cd_label, t1_label, t2_label = self.__transforms(True, pre_img, post_img, cd_label, t1_label, t2_label)
+        else:
+            pre_img, post_img, cd_label, t1_label, t2_label = self.__transforms(False, pre_img, post_img, cd_label, t1_label, t2_label)
+            cd_label = np.asarray(cd_label)
+            t1_label = np.asarray(t1_label)
+            t2_label = np.asarray(t2_label)
+
+        data_idx = self.data_list[index]
+        return pre_img, post_img, cd_label, t1_label, t2_label, data_idx
+
+    def __len__(self):
+        return len(self.data_list)
+    
+
+class SemanticChangeDetectionDatset_LandSat(Dataset):
+    def __init__(self, dataset_path, data_list, crop_size, max_iters=None, type='train', data_loader=img_loader):
+        self.dataset_path = dataset_path
+        self.data_list = data_list
+        self.loader = data_loader
+        self.type = type
+        self.data_pro_type = self.type
+
+        if max_iters is not None:
+            self.data_list = self.data_list * int(np.ceil(float(max_iters) / len(self.data_list)))
+            self.data_list = self.data_list[0:max_iters]
+        self.crop_size = crop_size
+
+    def __transforms(self, aug, pre_img, post_img, cd_label, t1_label, t2_label):
+        if aug:
+            pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_crop_mcd(pre_img, post_img, cd_label, t1_label, t2_label, self.crop_size)
+            pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_fliplr_mcd(pre_img, post_img, cd_label, t1_label, t2_label)
+            pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_flipud_mcd(pre_img, post_img, cd_label, t1_label, t2_label)
             pre_img, post_img, cd_label, t1_label, t2_label = imutils.random_rot_mcd(pre_img, post_img, cd_label, t1_label, t2_label)
             pre_img= imutils.random_photometric_imgs(pre_img)
             post_img = imutils.random_photometric_imgs(post_img)
@@ -107,25 +164,17 @@ class SemanticChangeDetectionDatset(Dataset):
         return pre_img, post_img, cd_label, t1_label, t2_label
 
     def __getitem__(self, index):
-        # if 'train' in self.data_pro_type:
-        #     pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index] + '.png')
-        #     post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index] + '.png')
-        #     T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index] + '.png')
-        #     T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index] + '.png')
-        #     cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index] + '.png')
-        # else:
-        pre_path = os.path.join(self.dataset_path, 'T1', self.data_list[index])
-        post_path = os.path.join(self.dataset_path, 'T2', self.data_list[index])
-        T1_label_path = os.path.join(self.dataset_path, 'GT_T1', self.data_list[index])
-        T2_label_path = os.path.join(self.dataset_path, 'GT_T2', self.data_list[index])
-        cd_label_path = os.path.join(self.dataset_path, 'GT_CD', self.data_list[index])
+        pre_path = os.path.join(self.dataset_path, 'A', self.data_list[index])
+        post_path = os.path.join(self.dataset_path, 'B', self.data_list[index])
+        T1_label_path = os.path.join(self.dataset_path, 'labelA', self.data_list[index])
+        T2_label_path = os.path.join(self.dataset_path, 'labelB', self.data_list[index])
 
         pre_img = self.loader(pre_path)
         post_img = self.loader(post_path)
         t1_label = self.loader(T1_label_path)
         t2_label = self.loader(T2_label_path)
-        cd_label = self.loader(cd_label_path)
-        cd_label = cd_label / 255
+        cd_label = np.zeros_like(t1_label)
+        cd_label[(t1_label > 0) | (t2_label > 0)] = 1
 
         if 'train' in self.data_pro_type:
             pre_img, post_img, cd_label, t1_label, t2_label = self.__transforms(True, pre_img, post_img, cd_label, t1_label, t2_label)
@@ -226,7 +275,13 @@ def make_data_loader(args, **kwargs):  # **kwargs could be omitted
         data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle, **kwargs, num_workers=16,
                                  drop_last=False)
         return data_loader
-    
+
+    elif 'LandSat' in args.dataset:
+        dataset = SemanticChangeDetectionDatset_LandSat(args.train_dataset_path, args.train_data_name_list, args.crop_size, args.max_iters, args.type)
+        data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle, **kwargs, num_workers=16,
+                                 drop_last=False)
+        return data_loader  
+
     else:
         raise NotImplementedError
 

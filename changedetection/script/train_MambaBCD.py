@@ -8,20 +8,20 @@ import time
 
 import numpy as np
 
-from MambaCD.changedetection.configs.config import get_config
+from RemoteSensing.changedetection.configs.config import get_config
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from MambaCD.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader
-from MambaCD.changedetection.utils_func.metrics import Evaluator
-from MambaCD.changedetection.models.MambaBCD import STMambaBCD
+from RemoteSensing.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader
+from RemoteSensing.changedetection.utils_func.metrics import Evaluator
+from RemoteSensing.changedetection.models.MambaBCD import STMambaBCD
 
-import MambaCD.changedetection.utils_func.lovasz_loss as L
+import RemoteSensing.changedetection.utils_func.lovasz_loss as L
 
-from ChangeDetection.CDlib.loss import ce2_dice1
+from RemoteSensing.changedetection.utils_func.loss import ce2_dice1
 from torch.utils.tensorboard import SummaryWriter
 
 class Trainer(object):
@@ -65,8 +65,9 @@ class Trainer(object):
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             ) 
         self.deep_model = self.deep_model.cuda()
+        file_name = input("Input the file name for saving the model: ")
         self.model_save_path = os.path.join(args.model_param_path, args.dataset,
-                                            args.model_type + '_' + str(time.time()))
+                                            args.model_type + file_name)
         self.lr = args.learning_rate
         self.epoch = args.max_iters // args.batch_size
 
@@ -111,38 +112,28 @@ class Trainer(object):
             ce_loss_1 = ce2_dice1(output_1, labels)
             lovasz_loss = L.lovasz_softmax(F.softmax(output_1, dim=1), labels, ignore=255)
             
-            # alpha = max(1.75 - (itera / 16000) * 1.0, 1.0)  # Gradually decrease weight
-            # lovasz_weight = min(0.75, itera / 16000)  # Gradually increase Lovász weight
 
-            alpha = 1.0
-            lovasz_weight = 0.75
-
-            if (itera + 1) > 16000:
-                alpha = 0.75
-                lovasz_weight = 1.5
-
-            main_loss = alpha * ce_loss_1 + lovasz_weight * lovasz_loss
-            final_loss = main_loss
+            final_loss = ce_loss_1 + 0.5*lovasz_loss
 
             final_loss.backward()
             self.optim.step()
 
-            self.writer.add_scalar('Loss/train', final_loss.item(), itera + 1)
+            self.writer.add_scalar('CDLoss/train', final_loss.item(), itera + 1)
 
             if (itera + 1) % 10 == 0:
                 print(f'iter is {itera + 1}, overall loss is {final_loss}')
                 if (itera + 1) % 500 == 0:
                     self.deep_model.eval()
                     rec, pre, oa, f1_score, iou, kc = self.validation()
-                    self.writer.add_scalar('Metrics/Recall', rec, itera + 1)
-                    self.writer.add_scalar('Metrics/Precision', pre, itera + 1)
-                    self.writer.add_scalar('Metrics/OA', oa, itera + 1)
-                    self.writer.add_scalar('Metrics/F1_score', f1_score, itera + 1)
-                    self.writer.add_scalar('Metrics/IoU', iou, itera + 1)
-                    self.writer.add_scalar('Metrics/Kappa', kc, itera + 1)
-                    if kc > best_kc:
+                    self.writer.add_scalar('CDMetrics/Recall', rec, itera + 1)
+                    self.writer.add_scalar('CDMetrics/Precision', pre, itera + 1)
+                    self.writer.add_scalar('CDMetrics/OA', oa, itera + 1)
+                    self.writer.add_scalar('CDMetrics/F1_score', f1_score, itera + 1)
+                    self.writer.add_scalar('CDMetrics/IoU', iou, itera + 1)
+                    self.writer.add_scalar('CDMetrics/Kappa', kc, itera + 1)
+                    if kc > best_kc and oa> 0.92:
                         torch.save(self.deep_model.state_dict(),
-                                   os.path.join(self.model_save_path, f'{itera + 1}_model.pth'))
+                                   os.path.join(self.model_save_path, f'{itera + 1}_model_{oa}_{kc}.pth'))
                         best_kc = kc
                         best_round = [rec, pre, oa, f1_score, iou, kc]
                     self.deep_model.train()
@@ -154,7 +145,7 @@ class Trainer(object):
         print('---------starting evaluation-----------')
         self.evaluator.reset()
         dataset = ChangeDetectionDatset(self.args.test_dataset_path, self.args.test_data_name_list, 256, None, 'test')
-        val_data_loader = DataLoader(dataset, batch_size=1, num_workers=4, drop_last=False)
+        val_data_loader = DataLoader(dataset, batch_size=4, num_workers=4, drop_last=False)
         torch.cuda.empty_cache()
         
         with torch.no_grad():
@@ -184,7 +175,7 @@ class Trainer(object):
 
 def main():
     parser = argparse.ArgumentParser(description="Training on SYSU/LEVIR-CD+/WHU-CD dataset")
-    parser.add_argument('--cfg', type=str, default='/home/songjian/project/MambaCD/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
+    parser.add_argument('--cfg', type=str, default='/home/songjian/project/RemoteSensing/VMamba/classification/configs/vssm1/vssm_base_224.yaml')
     parser.add_argument(
         "--opts",
         help="Modify config options by adding 'KEY VALUE' pairs. ",
