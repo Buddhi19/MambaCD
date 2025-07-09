@@ -1566,7 +1566,6 @@ class VSSM(nn.Module):
         # if channel first, then Norm and Output are both channel_first
         depth = len(drop_path)
         blocks = []
-        from ChangeDetection.ConvMamba import ConvMamba, ConvMamba_Encoder, Conv1DMamba_Encoder, Conv1DMamba_v2_Encoder
         for d in range(depth):
             blocks.append(VSSBlock(
                 hidden_dim=dim, 
