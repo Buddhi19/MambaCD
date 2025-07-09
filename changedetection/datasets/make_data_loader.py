@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-import RemoteSensing.changedetection.datasets.imutils as imutils
+import MambaCD.changedetection.datasets.imutils as imutils
 
 
 def img_loader(path):

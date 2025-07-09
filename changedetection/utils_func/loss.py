@@ -13,7 +13,7 @@ from typing import Iterable, Set, Tuple
 from scipy.ndimage import distance_transform_edt
 import torchvision.models as models
 
-from RemoteSensing.changedetection.utils_func.utils import simplex, class2one_hot, uniq
+from MambaCD.changedetection.utils_func.utils import simplex, class2one_hot, uniq
 
 def uniq(a: Tensor) -> Set:
     return set(torch.unique(a.cpu()).numpy())

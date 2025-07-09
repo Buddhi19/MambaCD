@@ -3,8 +3,8 @@ import torch.nn.functional as F
 
 import torch
 import torch.nn as nn
-from RemoteSensing.changedetection.models.Mamba_backbone import Backbone_VSSM
-from RemoteSensing.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
+from MambaCD.changedetection.models.Mamba_backbone import Backbone_VSSM
+from MambaCD.classification.models.vmamba import VSSM, LayerNorm2d, VSSBlock, Permute
 import os
 import time
 import math
@@ -12,7 +12,7 @@ import copy
 from functools import partial
 from typing import Optional, Callable, Any
 from collections import OrderedDict
-from RemoteSensing.changedetection.models.ChangeDecoder import ChangeDecoder
+from MambaCD.changedetection.models.ChangeDecoder import ChangeDecoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
