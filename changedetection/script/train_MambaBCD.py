@@ -14,6 +14,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import torch_optimizer as topt
 from tqdm import tqdm
 from MambaCD.changedetection.datasets.make_data_loader import ChangeDetectionDatset, make_data_loader
 from MambaCD.changedetection.utils_func.metrics import Evaluator
@@ -86,11 +87,85 @@ class Trainer(object):
             state_dict.update(model_dict)
             self.deep_model.load_state_dict(state_dict)
 
-        self.optim = optim.AdamW(self.deep_model.parameters(),
-                                 lr=args.learning_rate,
-                                 weight_decay=args.weight_decay)
-
+        self.optim = self._make_optimizer()
         self.writer = SummaryWriter(log_dir=os.path.join(self.model_save_path, 'logs'))
+
+    def _make_optimizer(self):
+        name = self.args.optimizer.lower()
+
+        if name == "adamw":
+            return optim.AdamW(
+                self.deep_model.parameters(),
+                lr=self.args.learning_rate,
+                weight_decay=self.args.weight_decay,
+            )
+        if name == "sgd":
+            return optim.SGD(
+                self.deep_model.parameters(),
+                lr=self.args.learning_rate,
+                momentum=0.9,
+                weight_decay=self.args.weight_decay,
+                nesterov=True,
+            )
+
+        # ---- mapping of torch-optimizer aliases to their classes ----
+        opt_table = {
+            # adaptive Adam variants
+            "adabelief":   topt.AdaBelief,
+            "adabound":    topt.AdaBound,
+            "adamod":      topt.AdaMod,
+            "adamp":       topt.AdamP,
+            "adahessian":  topt.Adahessian,
+            "radam":       topt.RAdam,
+            "qhadam":      topt.QHAdam,
+            "adam":        topt.AdamP,           # convenience alias
+            # transformers / large-batch
+            "lamb":        topt.Lamb,
+            "lars":        topt.LARS if hasattr(topt, "LARS") else None,
+            # second-order & curvature-aware
+            "shampoo":     topt.Shampoo,
+            # lookahead families
+            "lookahead":   topt.Lookahead,
+            "ranger":      topt.Ranger,
+            "rangerqh":    topt.RangerQH,
+            "rangerva":    topt.RangerVA,
+            # accelerated SGD variants
+            "sgdw":        topt.SGDW,
+            "sgdp":        topt.SGDP,
+            "accsgd":      topt.AccSGD,
+            # gradient rescaling / momentum tricks
+            "madgrad":     topt.MADGRAD,
+            "diffgrad":    topt.DiffGrad,
+            "aggmo":       topt.AggMo,
+            "apollo":      topt.Apollo,
+            "pid":         topt.PID,
+            # A2Grad family
+            "a2gradexp":   topt.A2GradExp,
+            "a2gradinc":   topt.A2GradInc,
+            "a2graduni":   topt.A2GradUni,
+            # others
+            "novograd":    topt.NovoGrad,
+            "yogi":        topt.Yogi,
+            "swats":       topt.SWATS,
+            "sgdw":        topt.SGDW,
+            "sgdp":        topt.SGDP,
+            "qhm":         topt.QHM,
+            "adadelta":    topt.Adafactor,       # alias (name clash with torch)
+            "adadfactor":  topt.Adafactor,
+        }
+
+        opt_cls = opt_table.get(name, None)
+        if opt_cls is None:
+            raise ValueError(f"Unsupported optimizer '{self.args.optimizer}'. "
+                            f"Check spelling or update opt_table.")
+
+        # Most torch-optimizer classes accept (params, lr, weight_decay, **kwargs).
+        # Pass only the common arguments here; tune others in the CLI/config if needed.
+        return opt_cls(
+            self.deep_model.parameters(),
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+        )
 
     def training(self):
         best_kc = 0.0
