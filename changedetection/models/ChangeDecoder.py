@@ -239,11 +239,22 @@ class ChangeDecoder(nn.Module):
             Permute(0, 3, 1, 2) if not channel_first else nn.Identity(),
         )
 
+        IN_FUSE_CHANNELS = 128 * 7
+        self.DIFF = True
+
+        self.CHANNEL = True
+
+        if not self.DIFF:
+            IN_FUSE_CHANNELS = 128 * 6
+
+        if not self.CHANNEL:
+            IN_FUSE_CHANNELS = 128 * 6
+
         # Fuse layer  
-        self.fuse_layer_4 = PyramidFusion(in_channels=128 * 7, out_channels=128)
-        self.fuse_layer_3 = PyramidFusion(in_channels=128 * 7, out_channels=128)
-        self.fuse_layer_2 = PyramidFusion(in_channels=128 * 7, out_channels=128)
-        self.fuse_layer_1 = PyramidFusion(in_channels=128 * 7, out_channels=128)
+        self.fuse_layer_4 = PyramidFusion(in_channels=IN_FUSE_CHANNELS, out_channels=128)
+        self.fuse_layer_3 = PyramidFusion(in_channels=IN_FUSE_CHANNELS, out_channels=128)
+        self.fuse_layer_2 = PyramidFusion(in_channels=IN_FUSE_CHANNELS, out_channels=128)
+        self.fuse_layer_1 = PyramidFusion(in_channels=IN_FUSE_CHANNELS, out_channels=128)
 
         # Smooth layer
         self.smooth_layer_3 = ResBlock(in_channels=128, out_channels=128, stride=1) 
@@ -254,6 +265,8 @@ class ChangeDecoder(nn.Module):
         self.attention_conv_3 = nn.Conv2d(in_channels=encoder_dims[-2], out_channels=128, kernel_size=1)
         self.attention_conv_2 = nn.Conv2d(in_channels=encoder_dims[-3], out_channels=128, kernel_size=1)
         self.attention_conv_1 = nn.Conv2d(in_channels=encoder_dims[-4], out_channels=128, kernel_size=1)
+
+        
 
     def _upsample_add(self, x, y):
         _, _, H, W = y.size()
@@ -272,7 +285,11 @@ class ChangeDecoder(nn.Module):
         ct_tensor_41 = torch.empty(B, 2*C, H, W, device=pre_feat_4.device)
         ct_tensor_41[:, ::2, :, :] = pre_feat_4
         ct_tensor_41[:, 1::2, :, :] = post_feat_4
-        p45 = self.st_block_44(ct_tensor_41)
+
+        p45 = None
+
+        if self.CHANNEL:
+            p45 = self.st_block_44(ct_tensor_41)
 
         ct_tensor_42 = torch.empty(B, C, H, 2*W, device=pre_feat_4.device)
         ct_tensor_42[:, :, :, ::2] = pre_feat_4
@@ -284,15 +301,23 @@ class ChangeDecoder(nn.Module):
         ct_tensor_43[:, :, :, W:] = post_feat_4
         p43 = self.st_block_43(ct_tensor_43)
 
-        diff_feat_4 = torch.abs(pre_feat_4 - post_feat_4)
-        p46 = self.st_block_46(diff_feat_4)
+        p46 = None
+
+        if self.DIFF:
+            diff_feat_4 = torch.abs(pre_feat_4 - post_feat_4)
+            p46 = self.st_block_46(diff_feat_4)
+
+        branches_all = [p41, p45, p42[:, :, :, ::2], p43[:, :, :, 1::2], p43[:, :, :, 0:W], p43[:, :, :, W:], p46]
+        branches_4 = [b for b in branches_all if b is not None]
 
         p4 = self.fuse_layer_4(
-            torch.cat([p41, p45, p42[:, :, :, ::2], p43[:, :, :, 1::2], p43[:, :, :, 0:W], p43[:, :, :, W:], p46], dim=1)
+            torch.cat(branches_4, dim=1)
         )
         # Apply change-guided attention
-        attention_map_4 = torch.sigmoid(self.attention_conv_4(diff_feat_4))
-        p4 = p4 * attention_map_4
+
+        if self.DIFF:
+            attention_map_4 = torch.sigmoid(self.attention_conv_4(diff_feat_4))
+            p4 = p4 * attention_map_4
         change_maps.append(p4)
 
         '''
@@ -303,7 +328,11 @@ class ChangeDecoder(nn.Module):
         ct_tensor_31 = torch.empty(B, 2*C, H, W, device=pre_feat_3.device)
         ct_tensor_31[:, ::2, :, :] = pre_feat_3
         ct_tensor_31[:, 1::2, :, :] = post_feat_3
-        p35 = self.st_block_35(ct_tensor_31)
+
+        p35 = None
+
+        if self.CHANNEL:
+            p35 = self.st_block_35(ct_tensor_31)
 
         ct_tensor_32 = torch.empty(B, C, H, 2*W, device=pre_feat_3.device)
         ct_tensor_32[:, :, :, ::2] = pre_feat_3
@@ -315,15 +344,22 @@ class ChangeDecoder(nn.Module):
         ct_tensor_33[:, :, :, W:] = post_feat_3
         p33 = self.st_block_33(ct_tensor_33)
 
-        diff_feat_3 = torch.abs(pre_feat_3 - post_feat_3)
-        p36 = self.st_block_36(diff_feat_3)
+        p36 = None
+
+        if self.DIFF:
+            diff_feat_3 = torch.abs(pre_feat_3 - post_feat_3)
+            p36 = self.st_block_36(diff_feat_3)
+
+        branches_all = [p31, p35, p32[:, :, :, ::2], p33[:, :, :, 1::2], p33[:, :, :, 0:W], p33[:, :, :, W:], p36]
+        branches_3 = [b for b in branches_all if b is not None]
 
         p3 = self.fuse_layer_3(
-            torch.cat([p31, p35, p32[:, :, :, ::2], p33[:, :, :, 1::2], p33[:, :, :, 0:W], p33[:, :, :, W:], p36], dim=1)
+            torch.cat(branches_3, dim=1)
         )
         # Apply change-guided attention
-        attention_map_3 = torch.sigmoid(self.attention_conv_3(diff_feat_3))
-        p3 = p3 * attention_map_3
+        if self.DIFF:
+            attention_map_3 = torch.sigmoid(self.attention_conv_3(diff_feat_3))
+            p3 = p3 * attention_map_3
         p3 = self._upsample_add(p4, p3)
         p3 = self.smooth_layer_3(p3)
         change_maps.append(p3)
@@ -336,7 +372,11 @@ class ChangeDecoder(nn.Module):
         ct_tensor_21 = torch.empty(B, 2*C, H, W, device=pre_feat_2.device)
         ct_tensor_21[:, ::2, :, :] = pre_feat_2
         ct_tensor_21[:, 1::2, :, :] = post_feat_2
-        p25 = self.st_block_25(ct_tensor_21)
+
+        p25 = None
+
+        if self.CHANNEL:
+            p25 = self.st_block_25(ct_tensor_21)
 
         ct_tensor_22 = torch.empty(B, C, H, 2*W, device=pre_feat_2.device)
         ct_tensor_22[:, :, :, ::2] = pre_feat_2
@@ -348,15 +388,23 @@ class ChangeDecoder(nn.Module):
         ct_tensor_23[:, :, :, W:] = post_feat_2
         p23 = self.st_block_23(ct_tensor_23)
 
-        diff_feat_2 = torch.abs(pre_feat_2 - post_feat_2)
-        p26 = self.st_block_26(diff_feat_2)
+        p26 = None
+
+        if self.DIFF:
+            diff_feat_2 = torch.abs(pre_feat_2 - post_feat_2)
+            p26 = self.st_block_26(diff_feat_2)
+
+        branches_all = [p21, p25, p22[:, :, :, ::2], p23[:, :, :, 1::2], p23[:, :, :, 0:W], p23[:, :, :, W:], p26]
+        branches_2 = [b for b in branches_all if b is not None]
 
         p2 = self.fuse_layer_2(
-            torch.cat([p21, p25, p22[:, :, :, ::2], p23[:, :, :, 1::2], p23[:, :, :, 0:W], p23[:, :, :, W:], p26], dim=1)
+            torch.cat(branches_2, dim=1)
         )
         # Apply change-guided attention
-        attention_map_2 = torch.sigmoid(self.attention_conv_2(diff_feat_2))
-        p2 = p2 * attention_map_2
+
+        if self.DIFF:
+            attention_map_2 = torch.sigmoid(self.attention_conv_2(diff_feat_2))
+            p2 = p2 * attention_map_2
         p2 = self._upsample_add(p3, p2)
         p2 = self.smooth_layer_2(p2)
         change_maps.append(p2)
@@ -369,7 +417,11 @@ class ChangeDecoder(nn.Module):
         ct_tensor_11 = torch.empty(B, 2*C, H, W, device=pre_feat_1.device)
         ct_tensor_11[:, ::2, :, :] = pre_feat_1
         ct_tensor_11[:, 1::2, :, :] = post_feat_1
-        p15 = self.st_block_15(ct_tensor_11)
+
+        p15 = None
+
+        if self.CHANNEL:
+            p15 = self.st_block_15(ct_tensor_11)
 
         ct_tensor_12 = torch.empty(B, C, H, 2*W, device=pre_feat_1.device)
         ct_tensor_12[:, :, :, ::2] = pre_feat_1
@@ -381,15 +433,23 @@ class ChangeDecoder(nn.Module):
         ct_tensor_13[:, :, :, W:] = post_feat_1
         p13 = self.st_block_13(ct_tensor_13)
 
-        diff_feat_1 = torch.abs(pre_feat_1 - post_feat_1)
-        p16 = self.st_block_16(diff_feat_1)
+        p16 = None
+
+        if self.DIFF:
+            diff_feat_1 = torch.abs(pre_feat_1 - post_feat_1)
+            p16 = self.st_block_16(diff_feat_1)
+
+        branches_all = [p11, p15, p12[:, :, :, ::2], p13[:, :, :, 1::2], p13[:, :, :, 0:W], p13[:, :, :, W:], p16]
+        branches_1 = [b for b in branches_all if b is not None]
 
         p1 = self.fuse_layer_1(
-            torch.cat([p11, p15, p12[:, :, :, ::2], p13[:, :, :, 1::2], p13[:, :, :, 0:W], p13[:, :, :, W:], p16], dim=1)
+            torch.cat(branches_1, dim=1)
         )
         # Apply change-guided attention
-        attention_map_1 = torch.sigmoid(self.attention_conv_1(diff_feat_1))
-        p1 = p1 * attention_map_1
+
+        if self.DIFF:
+            attention_map_1 = torch.sigmoid(self.attention_conv_1(diff_feat_1))
+            p1 = p1 * attention_map_1
         p1 = self._upsample_add(p2, p1)
         p1 = self.smooth_layer_1(p1)
         change_maps.append(p1)
