@@ -15,6 +15,7 @@ logs
 ckpts
 log
 ckpt
+annotations/Images/
 
 analyze/show
 
