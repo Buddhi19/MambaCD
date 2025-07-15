@@ -68,9 +68,9 @@ Download our pretrained models below:
 
 | Dataset   | IoU (%) | Download Link                          |
 |-----------|---------|----------------------------------------|
-| LEVIR-CD+ | 85.2    | [Link](https://drive.google.com/file/d/1uX0Yo8ov7EWlQr_EWxEM9UOwhdscY7M1/view?usp=drive_lin)                              |
-| SYSU-CD   | 82.7    | [Link](https://drive.google.com/file/d/1e6irCYcRmmtC2GPxEdAFd9j0LXd4HWnw/view?usp=drive_link)                              |
-| WHU-CD    | 88.5    | [Link](https://drive.google.com/file/d/1JJPZNxF9-3KhQyrQ5z6xuuHFVRD8hRlx/view?usp=drive_link)                              |
+| LEVIR-CD+ | 83.32    | [Link](https://drive.google.com/file/d/1uX0Yo8ov7EWlQr_EWxEM9UOwhdscY7M1/view?usp=drive_lin)                              |
+| SYSU-CD   | 75.04    | [Link](https://drive.google.com/file/d/1e6irCYcRmmtC2GPxEdAFd9j0LXd4HWnw/view?usp=drive_link)                              |
+| WHU-CD    | 89.95   | [Link](https://drive.google.com/file/d/1JJPZNxF9-3KhQyrQ5z6xuuHFVRD8hRlx/view?usp=drive_link)                              |
 
 
 ---
