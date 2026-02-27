@@ -85,6 +85,34 @@ Discover how our innovations elevate change detection:
 
 ---
 
+## If you find our work helpful please cite
+
+```bibtex
+@misc{wijenayake2025precision,
+      title={Precision Spatio-Temporal Feature Fusion for Robust Remote Sensing Change Detection}, 
+      author={Buddhi Wijenayake and Athulya Ratnayake and Praveen Sumanasekara and Nichula Wasalathilaka and Mathivathanan Piratheepan and Roshan Godaliyadda and Mervyn Ekanayake and Vijitha Herath},
+      year={2025},
+      eprint={2507.11523},
+      archivePrefix={arXiv},
+      primaryClass={eess.IV},
+      url={https://arxiv.org/abs/2507.11523}, 
+}
+```
+You may also cite the experimental paper that confirms improvements caused by CBAM
+```bibtex
+@INPROCEEDINGS{11217111,
+  author={Ratnayake, R.M.A.M.B. and Wijenayake, W.M.B.S.K. and Sumanasekara, D.M.U.P. and Godaliyadda, G.M.R.I. and Herath, H.M.V.R. and Ekanayake, M.P.B.},
+  booktitle={2025 Moratuwa Engineering Research Conference (MERCon)}, 
+  title={Enhanced SCanNet with CBAM and Dice Loss for Semantic Change Detection}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={84-89},
+  keywords={Training;Accuracy;Attention mechanisms;Sensitivity;Semantics;Refining;Feature extraction;Transformers;Power capacitors;Remote sensing},
+  doi={10.1109/MERCon67903.2025.11217111}}
+
+```
+
 ## 🙏 Acknowledgments
 
 A heartfelt thank you to [ChenHongruixuan/ChangeMamba](https://github.com/ChenHongruixuan/ChangeMamba) for the foundational code that sparked this project!
