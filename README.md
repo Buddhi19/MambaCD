@@ -6,7 +6,7 @@ Welcome to our cutting-edge implementation for remote sensing change detection! 
 
 ---
 ## 🔥🔥 Updates 
- - Our paper is live at ![IEEE Xplorer](https://ieeexplore.ieee.org/document/11450773)
+ - Our paper is live at [IEEE Xplorer](https://ieeexplore.ieee.org/document/11450773)
 ---
 
 ## 🚀 Introduction
