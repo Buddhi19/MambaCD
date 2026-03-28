@@ -5,6 +5,9 @@
 Welcome to our cutting-edge implementation for remote sensing change detection! This project enhances the [ChangeMamba](https://github.com/ChenHongruixuan/ChangeMamba) architecture with **precision fusion blocks**, an **enhanced decoder pipeline**, and an **improved optimization strategy**, delivering unparalleled accuracy in detecting spatio-temporal changes.
 
 ---
+## 🔥🔥 Updates 
+ - Our paper is live at ![IEEE Xplorer](https://ieeexplore.ieee.org/document/11450773)
+---
 
 ## 🚀 Introduction
 
@@ -88,15 +91,17 @@ Discover how our innovations elevate change detection:
 ## If you find our work helpful please cite
 
 ```bibtex
-@misc{wijenayake2025precision,
-      title={Precision Spatio-Temporal Feature Fusion for Robust Remote Sensing Change Detection}, 
-      author={Buddhi Wijenayake and Athulya Ratnayake and Praveen Sumanasekara and Nichula Wasalathilaka and Mathivathanan Piratheepan and Roshan Godaliyadda and Mervyn Ekanayake and Vijitha Herath},
-      year={2025},
-      eprint={2507.11523},
-      archivePrefix={arXiv},
-      primaryClass={eess.IV},
-      url={https://arxiv.org/abs/2507.11523}, 
-}
+@INPROCEEDINGS{11450773,
+  author={Wijenayake, W.M.B.S.K. and Ratnayake, R.M.A.M.B. and Sumanasekara, D.M.U.P. and Wasalathilaka, N.S. and Piratheepan, M. and Godaliyadda, G.M.R.I. and Ekanayake, M.P.B. and Herath, H.M.V.R.},
+  booktitle={2025 IEEE 19th International Conference on Industrial and Information Systems (ICIIS)}, 
+  title={Precision Spatio-Temporal Feature Fusion for Robust Remote Sensing Change Detection}, 
+  year={2026},
+  volume={19},
+  number={},
+  pages={557-562},
+  keywords={Accuracy;Computational modeling;Pipelines;Feature extraction;Transformers;Decoding;Remote sensing;Optimization;Monitoring;Context modeling;Remote Sensing;Binary Change Detection;State Space Models;Mamba},
+  doi={10.1109/ICIIS69028.2026.11450773}}
+
 ```
 You may also cite the experimental paper that confirms improvements caused by CBAM
 ```bibtex
@@ -118,20 +123,3 @@ You may also cite the experimental paper that confirms improvements caused by CB
 A heartfelt thank you to [ChenHongruixuan/ChangeMamba](https://github.com/ChenHongruixuan/ChangeMamba) for the foundational code that sparked this project!
 
 ---
-
-<!-- ## 📚 Citation
-
-If you find our work valuable, please cite us:
-
-```bibtex
-@article{ratheep2025precision,
-  title={Precision Spatio-Temporal Feature Fusion for Robust Remote Sensing Change Detection},
-  author={Ratheep, M.P. and others},
-  journal={TBD},
-  year={2025},
-  volume={TBD},
-  number={TBD},
-  pages={TBD},
-  doi={TBD}
-}
-``` -->
