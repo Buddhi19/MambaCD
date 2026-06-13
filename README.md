@@ -1,94 +1,155 @@
 # Precision Spatio-Temporal Feature Fusion for Robust Remote Sensing Change Detection
+Official implementation.
 
-![GitHub repo size](https://img.shields.io/github/repo-size/Buddhi19/MambaCD) ![GitHub last commit](https://img.shields.io/github/last-commit/Buddhi19/MambaCD) [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-Welcome to our cutting-edge implementation for remote sensing change detection! This project enhances the [ChangeMamba](https://github.com/ChenHongruixuan/ChangeMamba) architecture with **precision fusion blocks**, an **enhanced decoder pipeline**, and an **improved optimization strategy**, delivering unparalleled accuracy in detecting spatio-temporal changes.
+This repository extends the ChangeMamba / VMamba-based change detection pipeline with **precision spatio-temporal fusion blocks**, an **enhanced lightweight decoder**, and an **IoU-aware optimization strategy** for robust binary remote sensing change detection.
 
 ---
-## 🔥🔥 Updates 
- - Our paper is live at [IEEE Xplorer](https://ieeexplore.ieee.org/document/11450773)
+
+## 🔥 Updates
+
+* ✅ Paper is now live on IEEE Xplore: https://ieeexplore.ieee.org/document/11450773
+* ✅ arXiv version: https://arxiv.org/abs/2507.11523
+* ✅ Pretrained models released for **LEVIR-CD+**, **SYSU-CD**, and **WHU-CD**
+* ✅ Code and inference notebook are available in this repository
+
 ---
 
-## 🚀 Introduction
+## 🚀 Core Idea
 
-Monitoring changes in remote sensing imagery is vital for tracking environmental and urban dynamics. Our approach excels with:
+Remote sensing change detection is not only a feature extraction problem. It is fundamentally a **bitemporal feature fusion problem**.
 
-- 🔍 **Precision Fusion Blocks**: Detect subtle temporal shifts using channel-wise cross modeling and explicit difference modules.
-- 🧠 **Enhanced Decoder Pipeline**: Preserve fine details efficiently with lightweight convolutions and CBAM.
-- ⚙️ **Optimized Learning**: Tackle class imbalance and boost IoU with a blend of Dice loss, cross-entropy, and Lovász objectives.
+VMamba-style vision models process visual information through sequential state-space scanning. This makes them efficient for long-range spatial context modeling, but in change detection the model receives two temporally related images:
+
+* **T1**: pre-change reference image
+* **T2**: post-change current image
+
+A key challenge is preserving the temporal identity of both feature streams. If T1 and T2 features are mixed too early or too uniformly, the network may dilute the actual change evidence. This can lead to missed small structures, noisy boundaries, and false positives caused by illumination, seasonal variation, shadows, or registration errors.
+
+Our design follows a stronger fusion principle:
+
+> **Use T1 as the reference memory, but keep T2 as the dominant post-change representation.**
+
+The role of fusion is therefore not to simply concatenate or average the two timestamps. Instead, the fusion module should use the pre-change features to condition, contrast, and refine the post-change features so that the final representation becomes more sensitive to real structural change.
+
+---
+
+## 📊 Results
+
+The method is evaluated on three widely used remote sensing change detection datasets:
+
+* **LEVIR-CD+**
+* **SYSU-CD**
+* **WHU-CD**
+
+Pretrained checkpoints are provided below.
+
+| Dataset   | IoU (%) | Pretrained Model                                                                                  |
+| --------- | ------: | ------------------------------------------------------------------------------------------------- |
+| LEVIR-CD+ |   83.32 | [Download](https://drive.google.com/file/d/1uX0Yo8ov7EWlQr_EWxEM9UOwhdscY7M1/view?usp=drive_lin)  |
+| SYSU-CD   |   75.04 | [Download](https://drive.google.com/file/d/1e6irCYcRmmtC2GPxEdAFd9j0LXd4HWnw/view?usp=drive_link) |
+| WHU-CD    |   89.95 | [Download](https://drive.google.com/file/d/1JJPZNxF9-3KhQyrQ5z6xuuHFVRD8hRlx/view?usp=drive_link) |
+
+Qualitative results:
+
+![Qualitative Results](docs/image.png)
+
+---
+
+## 🧩 Architecture Overview
+
+The model is built around a VMamba / ChangeMamba-style backbone and improved with precision fusion and decoder refinement.
+
+![Modeling Mechanisms](docs/decoder_ICIIS.jpg)
+
+**Main components:**
+
+* VMamba-based feature extraction
+* precision spatio-temporal fusion blocks
+* explicit difference modeling
+* CBAM-enhanced decoder refinement
+* lightweight local-detail reconstruction
 
 ---
 
 ## 🛠️ Installation
 
-Set up the project in a few simple steps:
+Clone the repository:
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Buddhi19/MambaCD.git
-   cd MambaCD
-   ```
+```bash
+git clone https://github.com/Buddhi19/MambaCD.git
+cd MambaCD
+```
 
-2. **Create a Conda environment**:
-   ```bash
-   conda create -n mamba_cd
-   conda activate mamba_cd
-   ```
+Create and activate a Conda environment:
 
-3. **Install dependencies**:
-   - Install PyTorch following the [official instructions](https://docs.pytorch.org/get-started/locally/) for your system.
-   - Install remaining dependencies:
-     ```bash
-     pip install -r requirements.txt
-     ```
+```bash
+conda create -n mamba_cd python=3.10 -y
+conda activate mamba_cd
+```
+
+Install PyTorch according to your CUDA version from the official PyTorch website:
+
+https://pytorch.org/get-started/locally/
+
+Then install the remaining dependencies:
+
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
 ## 🎯 Quick Start
 
-### 🏋️ Training
-Kick off training with:
+### Training
+
+Run:
+
 ```bash
 python train.py
 ```
 
-### 🔍 Inference
-Refer to `annotation/Ours.ipynb` for detailed inference steps.
----
+Please update the dataset paths and training configuration according to your local setup before training.
 
-## 📊 Results
+### Inference
 
-Our model excels on datasets like LEVIR-CD+, SYSU-CD, and WHU-CD. See the qualitative results:
+For inference and visualization steps, refer to:
 
-![Qualitative Results](docs/image.png)
-
-
----
-
-## 📥 Pretrained Models
-
-Download our pretrained models below:
-
-| Dataset   | IoU (%) | Download Link                          |
-|-----------|---------|----------------------------------------|
-| LEVIR-CD+ | 83.32    | [Link](https://drive.google.com/file/d/1uX0Yo8ov7EWlQr_EWxEM9UOwhdscY7M1/view?usp=drive_lin)                              |
-| SYSU-CD   | 75.04    | [Link](https://drive.google.com/file/d/1e6irCYcRmmtC2GPxEdAFd9j0LXd4HWnw/view?usp=drive_link)                              |
-| WHU-CD    | 89.95   | [Link](https://drive.google.com/file/d/1JJPZNxF9-3KhQyrQ5z6xuuHFVRD8hRlx/view?usp=drive_link)                              |
-
+```text
+annotations/Ours.ipynb
+```
 
 ---
 
-## 🧩 Key Features
+## 📁 Repository Structure
 
-Discover how our innovations elevate change detection:
-
-![Modeling Mechanisms](docs/decoder_ICIIS.jpg)
-
-*Caption*: Showcasing precision fusion blocks, enhanced decoder, and STSS block enhancements.
+```text
+MambaCD/
+├── changedetection/        # Change detection models and training components
+├── classification/         # VMamba-related backbone components
+├── kernels/                # Selective scan kernels
+├── docs/                   # Figures and qualitative results
+├── annotations/            # Inference / visualization notebooks
+├── train.py                # Training entry point
+├── requirements.txt        # Python dependencies
+└── README.md
+```
 
 ---
 
-## If you find our work helpful please cite
+## 📌 Paper Links
+
+* IEEE Xplore: https://ieeexplore.ieee.org/document/11450773
+* arXiv: https://arxiv.org/abs/2507.11523
+* PDF: https://arxiv.org/pdf/2507.11523
+* Code: https://github.com/Buddhi19/MambaCD
+* Papers with Code: https://paperswithcode.com/paper/precision-spatio-temporal-feature-fusion-for
+
+---
+
+## 📚 Citation
+
+If you find this work useful for your research, please cite:
 
 ```bibtex
 @INPROCEEDINGS{11450773,
@@ -100,10 +161,12 @@ Discover how our innovations elevate change detection:
   number={},
   pages={557-562},
   keywords={Accuracy;Computational modeling;Pipelines;Feature extraction;Transformers;Decoding;Remote sensing;Optimization;Monitoring;Context modeling;Remote Sensing;Binary Change Detection;State Space Models;Mamba},
-  doi={10.1109/ICIIS69028.2026.11450773}}
-
+  doi={10.1109/ICIIS69028.2026.11450773}
+}
 ```
-You may also cite the experimental paper that confirms improvements caused by CBAM
+
+You may also cite our related experimental work on CBAM and Dice-loss-based semantic change detection:
+
 ```bibtex
 @INPROCEEDINGS{11217111,
   author={Ratnayake, R.M.A.M.B. and Wijenayake, W.M.B.S.K. and Sumanasekara, D.M.U.P. and Godaliyadda, G.M.R.I. and Herath, H.M.V.R. and Ekanayake, M.P.B.},
@@ -114,12 +177,22 @@ You may also cite the experimental paper that confirms improvements caused by CB
   number={},
   pages={84-89},
   keywords={Training;Accuracy;Attention mechanisms;Sensitivity;Semantics;Refining;Feature extraction;Transformers;Power capacitors;Remote sensing},
-  doi={10.1109/MERCon67903.2025.11217111}}
-
+  doi={10.1109/MERCon67903.2025.11217111}
+}
 ```
+
+---
 
 ## 🙏 Acknowledgments
 
-A heartfelt thank you to [ChenHongruixuan/ChangeMamba](https://github.com/ChenHongruixuan/ChangeMamba) for the foundational code that sparked this project!
+This work builds on the excellent ChangeMamba codebase:
+
+https://github.com/ChenHongruixuan/ChangeMamba
+
+We sincerely thank the authors for releasing their implementation and enabling further research on Mamba-based remote sensing change detection.
 
 ---
+
+## ⭐ Support
+
+If this repository helps your research, please consider giving it a star..
